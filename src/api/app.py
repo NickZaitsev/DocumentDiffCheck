@@ -1,0 +1,170 @@
+from __future__ import annotations
+
+import logging
+import time
+from collections.abc import Callable
+from typing import Awaitable
+from uuid import uuid4
+
+from fastapi import FastAPI, File, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
+
+from src import config
+from src.application.use_cases import CompareDocumentsUseCase, UploadDocumentUseCase
+from src.domain.comparison import DocumentComparisonService
+from src.domain.exceptions import (
+    AIProcessingError,
+    ComparisonError,
+    DocumentNotFoundError,
+    DocumentParsingError,
+    DocumentValidationError,
+    DomainError,
+)
+from src.infrastructure.docx_parser import DocxDocumentParser
+from src.infrastructure.insights import FallbackInsightProvider, ResilientInsightProvider
+from src.infrastructure.storage import LocalDocumentRepository
+from src.integrations.gemini_provider import GeminiInsightProvider
+from src.schemas.api import CompareByIdRequest, CompareResponse, DocumentOut
+
+logger = logging.getLogger(__name__)
+
+
+def create_app() -> FastAPI:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+
+    app = FastAPI(title="Document Diff Check", version="0.1.0")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    app.middleware("http")(request_context_middleware)
+    app.add_exception_handler(DomainError, domain_error_handler)
+
+    repository = LocalDocumentRepository()
+    parser = DocxDocumentParser()
+    comparison_service = DocumentComparisonService()
+    insight_provider = ResilientInsightProvider(
+        primary=_build_gemini_provider(),
+        fallback=FallbackInsightProvider(),
+    )
+    upload_use_case = UploadDocumentUseCase(repository)
+    compare_use_case = CompareDocumentsUseCase(
+        repository=repository,
+        parser=parser,
+        comparison_service=comparison_service,
+        insight_provider=insight_provider,
+    )
+
+    @app.get("/api/health")
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.post("/api/documents", response_model=DocumentOut)
+    async def upload_document(file: UploadFile = File(...)) -> DocumentOut:
+        content = await file.read()
+        document = upload_use_case.execute(
+            filename=file.filename or "",
+            content_type=file.content_type or "application/octet-stream",
+            content=content,
+        )
+        return DocumentOut.from_domain(document)
+
+    @app.get("/api/documents", response_model=list[DocumentOut])
+    def list_documents() -> list[DocumentOut]:
+        return [DocumentOut.from_domain(document) for document in repository.list()]
+
+    @app.post("/api/comparisons", response_model=CompareResponse)
+    def compare_by_id(payload: CompareByIdRequest) -> CompareResponse:
+        result = compare_use_case.execute_by_id(
+            old_document_id=payload.old_document_id,
+            new_document_id=payload.new_document_id,
+        )
+        return result.to_response()
+
+    @app.post("/api/comparisons/upload", response_model=CompareResponse)
+    async def compare_uploads(
+        old_file: UploadFile = File(...),
+        new_file: UploadFile = File(...),
+    ) -> CompareResponse:
+        old_content = await old_file.read()
+        new_content = await new_file.read()
+        result = compare_use_case.execute_uploads(
+            old_filename=old_file.filename or "",
+            old_content_type=old_file.content_type or "application/octet-stream",
+            old_content=old_content,
+            new_filename=new_file.filename or "",
+            new_content_type=new_file.content_type or "application/octet-stream",
+            new_content=new_content,
+        )
+        return result.to_response()
+
+    if config.FRONTEND_DIR.exists():
+        app.mount("/", StaticFiles(directory=config.FRONTEND_DIR, html=True), name="ui")
+
+    return app
+
+
+async def request_context_middleware(
+    request: Request,
+    call_next: Callable[[Request], Awaitable[Response]],
+) -> Response:
+    request_id = request.headers.get("X-Request-ID") or str(uuid4())
+    started_at = time.perf_counter()
+    try:
+        response = await call_next(request)
+    finally:
+        execution_time = time.perf_counter() - started_at
+        logger.info(
+            "request finished",
+            extra={
+                "request_id": request_id,
+                "operation": f"{request.method} {request.url.path}",
+                "execution_time": round(execution_time, 4),
+                "document_id": None,
+            },
+        )
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
+async def domain_error_handler(request: Request, exc: DomainError) -> JSONResponse:
+    status_code = _status_for_domain_error(exc)
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "error": type(exc).__name__,
+            "message": str(exc),
+            "request_id": request.headers.get("X-Request-ID"),
+        },
+    )
+
+
+def _status_for_domain_error(exc: DomainError) -> int:
+    if isinstance(exc, DocumentValidationError):
+        return 400
+    if isinstance(exc, DocumentNotFoundError):
+        return 404
+    if isinstance(exc, (DocumentParsingError, ComparisonError)):
+        return 422
+    if isinstance(exc, AIProcessingError):
+        return 502
+    return 500
+
+
+def _build_gemini_provider() -> GeminiInsightProvider | None:
+    try:
+        return GeminiInsightProvider()
+    except AIProcessingError:
+        return None
+
+
+app = create_app()
+
