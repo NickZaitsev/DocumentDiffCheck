@@ -36,11 +36,26 @@ http://127.0.0.1:8010
 
 ## Gemini config
 
-Do not use `.env` for this project. Configure Gemini directly in `src/config.py`:
+Do not use `.env` for this project. Configure AI providers directly in `src/config.py`.
+
+Gemini:
 
 ```python
 GEMINI_API_KEYS = ("your-key",)
 GEMINI_MODEL = "gemini-2.0-flash"
+```
+
+OpenRouter fallback provider:
+
+```python
+OPENROUTER_API_KEY = "your-openrouter-key"
+OPENROUTER_MODEL = "openai/gpt-4o-mini"
+```
+
+Provider order:
+
+```text
+Gemini -> OpenRouter -> deterministic fallback
 ```
 
 Prompts are also stored in `src/config.py`:
