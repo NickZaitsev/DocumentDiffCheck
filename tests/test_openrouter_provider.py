@@ -8,7 +8,7 @@ import pytest
 
 from src import config
 from src.api.app import _build_primary_insight_providers
-from src.integrations.openrouter_provider import OpenRouterInsightProvider
+from src.integrations.openrouter_provider import OpenRouterInsightProvider, _extract_json_content
 from src.schemas.insights import LegalSummary
 
 
@@ -67,6 +67,12 @@ def test_openrouter_provider_validates_structured_json(
     assert captured["headers"]["Authorization"] == "Bearer openrouter-key"
     assert captured["json"]["response_format"]["type"] == "json_schema"
     assert captured["json"]["response_format"]["json_schema"]["strict"] is True
+
+
+def test_extract_json_content_accepts_markdown_fenced_json() -> None:
+    content = '```json\n{"ok": true, "message": "done"}\n```'
+
+    assert _extract_json_content(content) == '{"ok": true, "message": "done"}'
 
 
 def test_primary_provider_falls_back_to_openrouter_when_gemini_unavailable(

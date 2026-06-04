@@ -77,7 +77,7 @@ class OpenRouterInsightProvider:
             response.raise_for_status()
             data = response.json()
             content = data["choices"][0]["message"]["content"]
-            return schema.model_validate_json(content)
+            return schema.model_validate_json(_extract_json_content(content))
         except (httpx.HTTPError, KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
             raise AIProcessingError("OpenRouter request failed") from exc
         except ValidationError as exc:
@@ -94,3 +94,22 @@ class OpenRouterInsightProvider:
             headers["X-Title"] = config.OPENROUTER_APP_NAME
         return headers
 
+
+def _extract_json_content(content: str) -> str:
+    stripped = content.strip()
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        stripped = "\n".join(lines).strip()
+
+    if stripped.startswith("{"):
+        return stripped
+
+    start = stripped.find("{")
+    end = stripped.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        return stripped
+    return stripped[start : end + 1]
