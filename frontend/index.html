@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Document Diff Check</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="toolbar">
+        <div>
+          <h1>Document Diff Check</h1>
+          <p>DOCX diff, summary для юриста и первичная оценка финансовых рисков.</p>
+        </div>
+        <button id="refreshDocuments" type="button">Обновить документы</button>
+      </section>
+
+      <section class="grid">
+        <form id="uploadCompareForm" class="panel">
+          <h2>Сравнить два DOCX</h2>
+          <label>
+            Старая версия
+            <input id="oldFile" name="old_file" type="file" accept=".docx" required />
+          </label>
+          <label>
+            Новая версия
+            <input id="newFile" name="new_file" type="file" accept=".docx" required />
+          </label>
+          <button type="submit">Сравнить</button>
+        </form>
+
+        <form id="idCompareForm" class="panel">
+          <h2>Сравнить по document ID</h2>
+          <label>
+            Old document ID
+            <input id="oldDocumentId" type="text" autocomplete="off" />
+          </label>
+          <label>
+            New document ID
+            <input id="newDocumentId" type="text" autocomplete="off" />
+          </label>
+          <button type="submit">Сравнить по ID</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>Загруженные документы</h2>
+        <div id="documents" class="documents empty">Пока документов нет.</div>
+      </section>
+
+      <section id="status" class="status" hidden></section>
+
+      <section id="results" class="results" hidden>
+        <div class="summary-row">
+          <article class="panel">
+            <h2>Статистика</h2>
+            <div id="stats" class="stats"></div>
+          </article>
+          <article class="panel">
+            <h2>Summary</h2>
+            <div id="summary"></div>
+          </article>
+        </div>
+
+        <article class="panel">
+          <h2>Финансовые риски</h2>
+          <div id="risks"></div>
+        </article>
+
+        <article class="panel">
+          <h2>Diffs</h2>
+          <div id="changes"></div>
+        </article>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
+
