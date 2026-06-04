@@ -6,6 +6,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 DOCUMENT_STORAGE_DIR = DATA_DIR / "documents"
 FRONTEND_DIR = BASE_DIR / "frontend"
+APP_HOST = "127.0.0.1"
+APP_PORT = 8010
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 SUPPORTED_EXTENSIONS = frozenset({".docx"})
@@ -53,4 +55,3 @@ cannot be calculated from the text. Do not invent missing contract values.
 Comparison payload:
 {comparison_payload}
 """.strip()
-
