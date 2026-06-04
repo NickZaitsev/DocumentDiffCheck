@@ -27,6 +27,7 @@ from src.infrastructure.docx_parser import DocxDocumentParser
 from src.infrastructure.insights import FallbackInsightProvider, ResilientInsightProvider
 from src.infrastructure.storage import LocalDocumentRepository
 from src.integrations.gemini_provider import GeminiInsightProvider
+from src.integrations.openrouter_provider import OpenRouterInsightProvider
 from src.schemas.api import CompareByIdRequest, CompareResponse, DocumentOut
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ def create_app() -> FastAPI:
     parser = DocxDocumentParser()
     comparison_service = DocumentComparisonService()
     insight_provider = ResilientInsightProvider(
-        primary=_build_gemini_provider(),
+        primary=_build_primary_insight_provider(),
         fallback=FallbackInsightProvider(),
     )
     upload_use_case = UploadDocumentUseCase(repository)
@@ -159,12 +160,13 @@ def _status_for_domain_error(exc: DomainError) -> int:
     return 500
 
 
-def _build_gemini_provider() -> GeminiInsightProvider | None:
-    try:
-        return GeminiInsightProvider()
-    except AIProcessingError:
-        return None
+def _build_primary_insight_provider() -> GeminiInsightProvider | OpenRouterInsightProvider | None:
+    for provider_factory in (GeminiInsightProvider, OpenRouterInsightProvider):
+        try:
+            return provider_factory()
+        except AIProcessingError:
+            continue
+    return None
 
 
 app = create_app()
-

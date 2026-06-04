@@ -22,6 +22,15 @@ GEMINI_TIMEOUT_MS = 120_000
 GEMINI_MAX_RETRIES = 3
 GEMINI_TEMPERATURE = 0.1
 
+OPENROUTER_API_KEY = ""
+OPENROUTER_MODEL = "openai/gpt-4o-mini"
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_TIMEOUT_SECONDS = 120
+OPENROUTER_MAX_TOKENS = 4000
+OPENROUTER_TEMPERATURE = 0.1
+OPENROUTER_SITE_URL = "http://127.0.0.1:8010"
+OPENROUTER_APP_NAME = "Document Diff Check"
+
 LEGAL_SUMMARY_PROMPT = """
 You are a legal document review assistant. Analyze only the provided structured
 DOCX diff. Do not invent clauses that are not present in the diff.
