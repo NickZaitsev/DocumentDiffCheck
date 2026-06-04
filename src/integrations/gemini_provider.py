@@ -11,7 +11,8 @@ from src.schemas.insights import LegalSummary, RiskAssessment
 
 class GeminiInsightProvider:
     def __init__(self) -> None:
-        if not config.GEMINI_API_KEYS:
+        api_keys = _gemini_api_keys()
+        if not api_keys:
             raise AIProcessingError("Gemini API keys are not configured")
         if config.GEMINI_GATEWAY_SRC_PATH.exists():
             path = str(config.GEMINI_GATEWAY_SRC_PATH)
@@ -22,7 +23,7 @@ class GeminiInsightProvider:
 
         gateway_config = GeminiGatewayConfig(
             model=config.GEMINI_MODEL,
-            api_keys=config.GEMINI_API_KEYS,
+            api_keys=api_keys,
             requests_per_minute=config.GEMINI_REQUESTS_PER_MINUTE,
             tokens_per_minute=config.GEMINI_TOKENS_PER_MINUTE,
             requests_per_day=config.GEMINI_REQUESTS_PER_DAY,
@@ -69,3 +70,9 @@ class GeminiInsightProvider:
             update={"provider": "gemini", "model": self._model}
         )
 
+
+def _gemini_api_keys() -> tuple[str, ...]:
+    raw_keys = config.GEMINI_API_KEYS
+    if isinstance(raw_keys, str):
+        return tuple(value.strip() for value in raw_keys.split(",") if value.strip())
+    return tuple(raw_keys)

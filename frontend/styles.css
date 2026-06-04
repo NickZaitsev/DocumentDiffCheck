@@ -69,6 +69,10 @@ label,
   color: var(--muted);
 }
 
+.preserve-lines {
+  white-space: pre-wrap;
+}
+
 .grid,
 .summary-row {
   display: grid;
@@ -248,7 +252,6 @@ button:hover {
 @media (max-width: 800px) {
   .toolbar,
   .grid,
-  .summary-row,
   .text-pair {
     grid-template-columns: 1fr;
     display: grid;
@@ -258,4 +261,3 @@ button:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-

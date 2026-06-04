@@ -3,11 +3,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+import pytest
 
+from src import config
 from src.api.app import create_app
 
 
-def test_compare_uploads_returns_diff_summary_and_risks() -> None:
+def test_compare_uploads_returns_diff_summary_and_risks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(config, "GEMINI_API_KEYS", ())
     client = TestClient(create_app())
     old_path = Path("samples/dogovor_postavki_v1.docx")
     new_path = Path("samples/dogovor_postavki_v2.docx")
@@ -35,4 +40,3 @@ def test_compare_uploads_returns_diff_summary_and_risks() -> None:
     assert payload["comparison"]["changes"]
     assert payload["summary"]["plain_language_summary"]
     assert "risk_assessment" in payload
-

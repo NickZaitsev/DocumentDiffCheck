@@ -167,11 +167,11 @@ class FallbackInsightProvider:
         old_text = change.old_block.text if change.old_block else None
         new_text = change.new_block.text if change.new_block else None
         if old_text and new_text:
-            return f"Было: {old_text[:350]} Новая редакция: {new_text[:350]}"
+            return f"Было:\n{old_text[:500]}\n\nСтало:\n{new_text[:500]}"
         if new_text:
-            return f"Добавлен текст: {new_text[:500]}"
+            return f"Стало:\n{new_text[:500]}"
         if old_text:
-            return f"Удален текст: {old_text[:500]}"
+            return f"Было:\n{old_text[:500]}"
         return "Изменение без текстового блока."
 
     def _legal_significance(self, change: DocumentChange) -> str:
@@ -288,4 +288,3 @@ def _trim(text: str | None, *, limit: int = 1400) -> str | None:
     if len(text) <= limit:
         return text
     return text[: limit - 3] + "..."
-

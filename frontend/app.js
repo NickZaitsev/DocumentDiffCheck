@@ -146,7 +146,7 @@ function renderKeyChange(change) {
   return `
     <div class="key-change">
       <h3>${escapeHtml(change.title)}</h3>
-      <p>${escapeHtml(change.description)}</p>
+      <p class="preserve-lines">${escapeHtml(change.description)}</p>
       <p class="muted">${escapeHtml(change.legal_significance)}</p>
     </div>
   `;
@@ -232,4 +232,3 @@ function escapeHtml(value) {
 }
 
 loadDocuments();
-
