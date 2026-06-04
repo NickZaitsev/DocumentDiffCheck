@@ -53,7 +53,7 @@ def create_app() -> FastAPI:
     parser = DocxDocumentParser()
     comparison_service = DocumentComparisonService()
     insight_provider = ResilientInsightProvider(
-        primary=_build_primary_insight_provider(),
+        primary=_build_primary_insight_providers(),
         fallback=FallbackInsightProvider(),
     )
     upload_use_case = UploadDocumentUseCase(repository)
@@ -160,13 +160,14 @@ def _status_for_domain_error(exc: DomainError) -> int:
     return 500
 
 
-def _build_primary_insight_provider() -> GeminiInsightProvider | OpenRouterInsightProvider | None:
+def _build_primary_insight_providers() -> tuple[GeminiInsightProvider | OpenRouterInsightProvider, ...]:
+    providers: list[GeminiInsightProvider | OpenRouterInsightProvider] = []
     for provider_factory in (GeminiInsightProvider, OpenRouterInsightProvider):
         try:
-            return provider_factory()
+            providers.append(provider_factory())
         except AIProcessingError:
             continue
-    return None
+    return tuple(providers)
 
 
 app = create_app()

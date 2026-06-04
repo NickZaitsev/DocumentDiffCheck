@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 
+from collections.abc import Sequence
+
 from pydantic import BaseModel
 
 from src.domain.entities import ChangeType, ComparisonResult, DocumentChange
@@ -211,29 +213,40 @@ class ResilientInsightProvider:
     def __init__(
         self,
         *,
-        primary: InsightProvider | None,
+        primary: InsightProvider | Sequence[InsightProvider] | None,
         fallback: InsightProvider,
     ) -> None:
-        self._primary = primary
+        if primary is None:
+            self._primary_providers = ()
+        elif isinstance(primary, Sequence):
+            self._primary_providers = tuple(primary)
+        else:
+            self._primary_providers = (primary,)
         self._fallback = fallback
 
     def generate_summary(self, comparison: ComparisonResult) -> LegalSummary:
-        if self._primary is None:
-            return self._fallback.generate_summary(comparison)
-        try:
-            return self._primary.generate_summary(comparison)
-        except AIProcessingError:
-            summary = self._fallback.generate_summary(comparison)
-            return summary.model_copy(update={"provider": "fallback_after_llm_error"})
+        for provider in self._primary_providers:
+            try:
+                return provider.generate_summary(comparison)
+            except AIProcessingError:
+                continue
+        summary = self._fallback.generate_summary(comparison)
+        provider_name = (
+            "fallback_after_llm_error" if self._primary_providers else "fallback"
+        )
+        return summary.model_copy(update={"provider": provider_name})
 
     def assess_risks(self, comparison: ComparisonResult) -> RiskAssessment:
-        if self._primary is None:
-            return self._fallback.assess_risks(comparison)
-        try:
-            return self._primary.assess_risks(comparison)
-        except AIProcessingError:
-            risks = self._fallback.assess_risks(comparison)
-            return risks.model_copy(update={"provider": "fallback_after_llm_error"})
+        for provider in self._primary_providers:
+            try:
+                return provider.assess_risks(comparison)
+            except AIProcessingError:
+                continue
+        risks = self._fallback.assess_risks(comparison)
+        provider_name = (
+            "fallback_after_llm_error" if self._primary_providers else "fallback"
+        )
+        return risks.model_copy(update={"provider": provider_name})
 
 
 def build_prompt_payload(

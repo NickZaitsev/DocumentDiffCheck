@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from src import config
-from src.api.app import _build_primary_insight_provider
+from src.api.app import _build_primary_insight_providers
 from src.integrations.openrouter_provider import OpenRouterInsightProvider
 from src.schemas.insights import LegalSummary
 
@@ -75,7 +75,7 @@ def test_primary_provider_falls_back_to_openrouter_when_gemini_unavailable(
     monkeypatch.setattr(config, "GEMINI_API_KEYS", ())
     monkeypatch.setattr(config, "OPENROUTER_API_KEY", "openrouter-key")
 
-    provider = _build_primary_insight_provider()
+    providers = _build_primary_insight_providers()
 
-    assert isinstance(provider, OpenRouterInsightProvider)
-
+    assert len(providers) == 1
+    assert isinstance(providers[0], OpenRouterInsightProvider)
