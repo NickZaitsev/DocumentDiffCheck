@@ -9,6 +9,7 @@ from src.domain.entities import (
     ComparisonResult,
     ComparisonStats,
     DocumentBlock,
+    DocumentBlockKind,
     DocumentChange,
     ParsedDocument,
     WordDiffSegment,
@@ -17,6 +18,9 @@ from src.domain.entities import (
 from src.domain.exceptions import ComparisonError
 
 _WORD_RE = re.compile(r"\S+")
+_LEADING_NUMBERING_RE = re.compile(r"^\s*(?:\(?\d+(?:\.\d+)*\)?[.)])(?:\s+|$)+")
+_NUMBERING_ONLY_RE = re.compile(r"^\s*(?:\(?\d+(?:\.\d+)*\)?[.)])(?:\s+|$)*$")
+_TABLE_ROW_NUMBER_RE = re.compile(r"^\d+$")
 
 
 class DocumentComparisonService:
@@ -33,8 +37,8 @@ class DocumentComparisonService:
         if not new_document.blocks:
             raise ComparisonError("New document has no readable text blocks")
 
-        old_keys = [block.normalized_text for block in old_document.blocks]
-        new_keys = [block.normalized_text for block in new_document.blocks]
+        old_keys = [self._comparison_key(block) for block in old_document.blocks]
+        new_keys = [self._comparison_key(block) for block in new_document.blocks]
         matcher = SequenceMatcher(a=old_keys, b=new_keys, autojunk=False)
 
         changes: list[DocumentChange] = []
@@ -157,8 +161,8 @@ class DocumentComparisonService:
         for old_index, old_block in enumerate(old_span):
             for new_index, new_block in enumerate(new_span):
                 similarity = SequenceMatcher(
-                    a=old_block.normalized_text,
-                    b=new_block.normalized_text,
+                    a=self._comparison_key(old_block),
+                    b=self._comparison_key(new_block),
                     autojunk=False,
                 ).ratio()
                 if similarity >= self._modified_similarity_threshold:
@@ -237,4 +241,26 @@ class DocumentComparisonService:
     def _change_position(self, change: DocumentChange) -> int:
         block = change.new_block or change.old_block
         return block.index if block is not None else 0
+
+    def _comparison_key(self, block: DocumentBlock) -> str:
+        if block.kind == DocumentBlockKind.TABLE_ROW:
+            return self._table_row_key(block.normalized_text)
+        return self._strip_leading_numbering(block.normalized_text)
+
+    def _table_row_key(self, text: str) -> str:
+        cells = [cell.strip() for cell in text.split("|")]
+        if len(cells) > 1 and _TABLE_ROW_NUMBER_RE.fullmatch(cells[0]):
+            remainder = " | ".join(cell for cell in cells[1:] if cell)
+            if remainder:
+                return remainder
+            return "__table_row_number__"
+        return text
+
+    def _strip_leading_numbering(self, text: str) -> str:
+        stripped = _LEADING_NUMBERING_RE.sub("", text).strip()
+        if stripped:
+            return stripped
+        if _NUMBERING_ONLY_RE.fullmatch(text):
+            return "__numbering_only__"
+        return text
 

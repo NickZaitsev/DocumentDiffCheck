@@ -566,41 +566,81 @@ function renderChanges(changes) {
     changesPanel.innerHTML = `<div class="risk-banner"><span class="rb-text">Отличия не найдены.</span></div>`;
     return;
   }
-  changesPanel.innerHTML = `<div class="stack">${changes.map(renderChange).join("")}</div>`;
+  changesPanel.innerHTML = `<div class="diff-view">${changes.map(renderChange).join("")}</div>`;
 }
 
 function renderChange(change) {
   const oldText = change.old_block ? change.old_block.text : "";
   const newText = change.new_block ? change.new_block.text : "";
-  const hasDiff = change.word_diff && change.word_diff.length;
+  const rowClass = `diff-row diff-row-${change.change_type}`;
+  const isTable = change.old_block?.kind === "table_row" || change.new_block?.kind === "table_row";
+  const oldContent = renderDiffSide(change, "old", oldText, isTable);
+  const newContent = renderDiffSide(change, "new", newText, isTable);
   return `
-    <div class="change">
-      <div class="change-head">
-        <span class="badge ${escapeHtml(change.change_type)}">${escapeHtml(change.change_type)}</span>
-        <span class="sim-note">сходство ${Math.round(change.similarity * 100)}%</span>
+    <div class="${rowClass}">
+      <div class="diff-row-meta">
+        <span class="diff-badge ${escapeHtml(change.change_type)}">${changeLabel(change.change_type)}</span>
+        <span class="sim-note">${Math.round(change.similarity * 100)}%</span>
       </div>
-      <div class="text-pair">
-        <div class="text-col">
-          <h4>Было</h4>
-          <div class="text-box box-old">${escapeHtml(oldText || "—")}</div>
+      <div class="diff-split">
+        <div class="diff-side diff-old">
+          <div class="diff-line-no">${formatBlockIndex(change.old_block)}</div>
+          <div class="diff-content">${oldContent}</div>
         </div>
-        <div class="text-col">
-          <h4>Стало</h4>
-          <div class="text-box box-new">${escapeHtml(newText || "—")}</div>
+        <div class="diff-side diff-new">
+          <div class="diff-line-no">${formatBlockIndex(change.new_block)}</div>
+          <div class="diff-content">${newContent}</div>
         </div>
       </div>
-      ${
-        hasDiff
-          ? `<div class="word-diff-label" style="margin-top:12px">Пословный diff</div>
-             <div class="word-diff">${change.word_diff.map(renderWordSegment).join(" ")}</div>`
-          : ""
-      }
     </div>
   `;
 }
 
-function renderWordSegment(segment) {
-  return `<span class="${escapeHtml(segment.diff_type)}">${escapeHtml(segment.text)}</span>`;
+function renderDiffSide(change, side, text, isTable) {
+  if (!text) {
+    return `<span class="diff-empty">Нет блока</span>`;
+  }
+  if (change.change_type === "modified" && change.word_diff && change.word_diff.length) {
+    return `<div class="inline-diff">${renderInlineDiff(change.word_diff, side)}</div>`;
+  }
+  if (isTable) {
+    return renderTableRow(text);
+  }
+  return `<div class="diff-text">${escapeHtml(text)}</div>`;
+}
+
+function renderInlineDiff(segments, side) {
+  return segments
+    .filter((segment) => {
+      if (side === "old") return segment.diff_type !== "added";
+      return segment.diff_type !== "removed";
+    })
+    .map((segment) => `<span class="${escapeHtml(segment.diff_type)}">${escapeHtml(segment.text)}</span>`)
+    .join(" ");
+}
+
+function renderTableRow(text) {
+  const cells = String(text).split("|").map((cell) => cell.trim());
+  if (cells.length < 2) {
+    return `<div class="diff-text">${escapeHtml(text)}</div>`;
+  }
+  return `<table class="diff-table"><tbody><tr>${cells
+    .map((cell) => `<td>${escapeHtml(cell)}</td>`)
+    .join("")}</tr></tbody></table>`;
+}
+
+function formatBlockIndex(block) {
+  return block ? block.index + 1 : "";
+}
+
+function changeLabel(type) {
+  const labels = {
+    unchanged: "Без изменений",
+    added: "Добавлено",
+    removed: "Удалено",
+    modified: "Изменено",
+  };
+  return labels[type] || escapeHtml(type);
 }
 
 /* ---------- Toasts ---------- */

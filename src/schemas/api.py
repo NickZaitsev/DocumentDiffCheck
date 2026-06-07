@@ -125,7 +125,6 @@ class ComparisonOut(BaseModel):
             changes=[
                 DocumentChangeOut.from_domain(change)
                 for change in comparison.changes
-                if change.change_type != ChangeType.UNCHANGED
             ],
         )
 

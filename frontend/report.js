@@ -13,6 +13,9 @@ const shareReport = document.querySelector("#shareReport");
 const toasts = document.querySelector("#toasts");
 const themeToggle = document.querySelector("#themeToggle");
 
+let currentComparison = null;
+let diffMode = localStorage.getItem("ddc-diff-mode") || "full";
+
 const storedTheme = localStorage.getItem("ddc-theme");
 if (storedTheme) document.documentElement.dataset.theme = storedTheme;
 themeToggle.addEventListener("click", () => {
@@ -29,6 +32,20 @@ document.querySelectorAll(".tab").forEach((tab) => {
       panel.classList.toggle("is-active", panel.dataset.panel === name),
     );
   });
+});
+
+changesPanel.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-diff-mode]");
+  if (!button) {
+    return;
+  }
+  const nextMode = button.dataset.diffMode;
+  if (nextMode === diffMode) {
+    return;
+  }
+  diffMode = nextMode;
+  localStorage.setItem("ddc-diff-mode", diffMode);
+  renderChanges(currentComparison?.changes || []);
 });
 
 shareReport.addEventListener("click", async () => {
@@ -58,6 +75,7 @@ async function loadReport() {
 function renderReport(report) {
   reportStatus.hidden = true;
   reportView.hidden = false;
+  currentComparison = report.comparison;
   const comparison = report.comparison;
   reportTitle.textContent = `${comparison.old_filename} → ${comparison.new_filename}`;
   reportDate.textContent = `Создан: ${formatDate(report.created_at)}`;
@@ -184,47 +202,151 @@ function renderRisk(risk) {
 }
 
 function renderChanges(changes) {
-  changeCount.hidden = !changes.length;
-  changeCount.textContent = changes.length;
-  if (!changes.length) {
-    changesPanel.innerHTML = `<div class="risk-banner"><span class="rb-text">Отличия не найдены.</span></div>`;
+  const visibleChanges =
+    diffMode === "diff" ? changes.filter((change) => change.change_type !== "unchanged") : changes;
+  changeCount.hidden = !visibleChanges.length;
+  changeCount.textContent = visibleChanges.length;
+  if (!visibleChanges.length) {
+    changesPanel.innerHTML = `${renderDiffToolbar()}<div class="risk-banner"><span class="rb-text">Отличия не найдены.</span></div>`;
     return;
   }
-  changesPanel.innerHTML = `<div class="stack">${changes.map(renderChange).join("")}</div>`;
+  changesPanel.innerHTML = `${renderDiffToolbar()}<div class="diff-view diff-view-${escapeHtml(diffMode)}">${visibleChanges
+    .map(renderChange)
+    .join("")}</div>`;
 }
 
 function renderChange(change) {
   const oldText = change.old_block ? change.old_block.text : "";
   const newText = change.new_block ? change.new_block.text : "";
-  const hasDiff = change.word_diff && change.word_diff.length;
+  const isTable = change.old_block?.kind === "table_row" || change.new_block?.kind === "table_row";
+  if (diffMode === "split" && change.change_type === "modified") {
+    return `
+      <div class="diff-row diff-row-${change.change_type} diff-row-split">
+        <div class="diff-split">
+          <div class="diff-side diff-old">${renderDiffSide(change, "old", oldText, isTable)}</div>
+          <div class="diff-side diff-new">${renderDiffSide(change, "new", newText, isTable)}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  const content = renderUnifiedChange(change, oldText, newText, isTable);
   return `
-    <div class="change">
-      <div class="change-head">
-        <span class="badge ${escapeHtml(change.change_type)}">${escapeHtml(change.change_type)}</span>
-        <span class="sim-note">сходство ${Math.round(change.similarity * 100)}%</span>
-      </div>
-      <div class="text-pair">
-        <div class="text-col">
-          <h4>Было</h4>
-          <div class="text-box box-old">${escapeHtml(oldText || "—")}</div>
-        </div>
-        <div class="text-col">
-          <h4>Стало</h4>
-          <div class="text-box box-new">${escapeHtml(newText || "—")}</div>
-        </div>
-      </div>
-      ${
-        hasDiff
-          ? `<div class="word-diff-label" style="margin-top:12px">Пословный diff</div>
-             <div class="word-diff">${change.word_diff.map(renderWordSegment).join(" ")}</div>`
-          : ""
-      }
+    <div class="diff-row diff-row-${change.change_type}">
+      <div class="diff-single">${content}</div>
     </div>
   `;
 }
 
-function renderWordSegment(segment) {
-  return `<span class="${escapeHtml(segment.diff_type)}">${escapeHtml(segment.text)}</span>`;
+function renderUnifiedChange(change, oldText, newText, isTable) {
+  if (change.change_type === "added") {
+    return renderSingleBlock(newText, isTable, "added");
+  }
+  if (change.change_type === "removed") {
+    return renderSingleBlock(oldText, isTable, "removed");
+  }
+  if (change.change_type === "unchanged") {
+    return renderSingleBlock(oldText || newText, isTable, "unchanged");
+  }
+  return renderUnifiedDiff(change, isTable);
+}
+
+function renderDiffSide(change, side, text, isTable) {
+  if (!text) {
+    return `<span class="diff-empty">&nbsp;</span>`;
+  }
+  if (change.change_type === "modified" && change.word_diff && change.word_diff.length) {
+    return `<div class="inline-diff">${renderInlineDiff(change.word_diff, side)}</div>`;
+  }
+  if (isTable) {
+    return renderTableRow(text, side, change.change_type);
+  }
+  return `<div class="diff-text">${escapeHtml(text)}</div>`;
+}
+
+function renderInlineDiff(segments, side) {
+  return segments
+    .filter((segment) => {
+      if (side === "old") return segment.diff_type !== "added";
+      return segment.diff_type !== "removed";
+    })
+    .map((segment) => `<span class="${escapeHtml(segment.diff_type)}">${escapeHtml(segment.text)}</span>`)
+    .join(" ");
+}
+
+function renderUnifiedDiff(change, isTable) {
+  if (isTable) {
+    return renderUnifiedTable(change);
+  }
+  return `<div class="diff-text diff-text-unified">${renderUnifiedSegments(change.word_diff)}</div>`;
+}
+
+function renderUnifiedSegments(segments) {
+  return segments
+    .map((segment) => {
+      const cls = escapeHtml(segment.diff_type);
+      if (segment.diff_type === "equal") {
+        return `<span class="equal">${escapeHtml(segment.text)}</span>`;
+      }
+      return `<span class="${cls}">${escapeHtml(segment.text)}</span>`;
+    })
+    .join(" ");
+}
+
+function renderSingleBlock(text, isTable, tone = "unchanged") {
+  if (isTable) {
+    return renderTableRow(text, "single", tone);
+  }
+  return `<div class="diff-text diff-text-single diff-text-${escapeHtml(tone)}">${escapeHtml(text)}</div>`;
+}
+
+function renderUnifiedTable(change) {
+  const oldCells = parseTableCells(change.old_block?.text || "");
+  const newCells = parseTableCells(change.new_block?.text || "");
+  const cellCount = Math.max(oldCells.length, newCells.length);
+  const cells = Array.from({ length: cellCount }, (_, index) => {
+    const oldCell = oldCells[index] || "";
+    const newCell = newCells[index] || "";
+    if (oldCell === newCell) {
+      return `<td><span class="equal">${escapeHtml(oldCell || newCell)}</span></td>`;
+    }
+    const pieces = [];
+    if (oldCell) {
+      pieces.push(`<span class="removed">${escapeHtml(oldCell)}</span>`);
+    }
+    if (newCell) {
+      pieces.push(`<span class="added">${escapeHtml(newCell)}</span>`);
+    }
+    return `<td>${pieces.join(" ")}</td>`;
+  });
+  return `<table class="diff-table diff-table-unified"><tbody><tr>${cells.join("")}</tr></tbody></table>`;
+}
+
+function renderTableRow(text, side, changeType) {
+  const cells = parseTableCells(text);
+  if (cells.length < 2) {
+    return `<div class="diff-text">${escapeHtml(text)}</div>`;
+  }
+  return `<table class="diff-table diff-table-${escapeHtml(changeType)} diff-table-${escapeHtml(side)}"><tbody><tr>${cells
+    .map((cell) => `<td>${escapeHtml(cell)}</td>`)
+    .join("")}</tr></tbody></table>`;
+}
+
+function renderDiffToolbar() {
+  return `
+    <div class="diff-toolbar" role="toolbar" aria-label="Режим сравнения">
+      <button class="diff-toggle ${diffMode === "full" ? "is-active" : ""}" type="button" data-diff-mode="full">Полный текст</button>
+      <button class="diff-toggle ${diffMode === "diff" ? "is-active" : ""}" type="button" data-diff-mode="diff">Только различия</button>
+      <button class="diff-toggle ${diffMode === "split" ? "is-active" : ""}" type="button" data-diff-mode="split">Сравнение</button>
+    </div>
+  `;
+}
+
+function parseTableCells(text) {
+  return String(text)
+    .split("|")
+    .map((cell) => cell.trim())
+    .filter((cell, index, array) => !(index === 0 && array.length === 1 && !cell));
 }
 
 function showError(message) {
