@@ -14,7 +14,11 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 
 from src import config
-from src.application.use_cases import CompareDocumentsUseCase, UploadDocumentUseCase
+from src.application.use_cases import (
+    CompareDocumentsUseCase,
+    ReviewDocumentUseCase,
+    UploadDocumentUseCase,
+)
 from src.domain.comparison import DocumentComparisonService
 from src.domain.exceptions import (
     AIProcessingError,
@@ -36,7 +40,9 @@ from src.schemas.api import (
     CompareResponse,
     ComparisonReportOut,
     ComparisonReportSummaryOut,
+    DocumentReviewResponse,
     DocumentOut,
+    ReviewByIdRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -71,6 +77,11 @@ def create_app() -> FastAPI:
         repository=repository,
         parser=parser,
         comparison_service=comparison_service,
+        insight_provider=insight_provider,
+    )
+    review_use_case = ReviewDocumentUseCase(
+        repository=repository,
+        parser=parser,
         insight_provider=insight_provider,
     )
 
@@ -133,6 +144,21 @@ def create_app() -> FastAPI:
             new_content=new_content,
         )
         return report_repository.save(result.to_response()).to_response()
+
+    @app.post("/api/reviews", response_model=DocumentReviewResponse)
+    def review_by_id(payload: ReviewByIdRequest) -> DocumentReviewResponse:
+        result = review_use_case.execute_by_id(document_id=payload.document_id)
+        return result.to_response()
+
+    @app.post("/api/reviews/upload", response_model=DocumentReviewResponse)
+    async def review_upload(file: UploadFile = File(...)) -> DocumentReviewResponse:
+        content = await file.read()
+        result = review_use_case.execute_upload(
+            filename=file.filename or "",
+            content_type=file.content_type or "application/octet-stream",
+            content=content,
+        )
+        return result.to_response()
 
     @app.get("/api/reports", response_model=list[ComparisonReportSummaryOut])
     def list_reports() -> list[ComparisonReportSummaryOut]:

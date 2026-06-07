@@ -3,9 +3,9 @@ from __future__ import annotations
 import sys
 
 from src import config
-from src.domain.entities import ComparisonResult
+from src.domain.entities import ComparisonResult, ParsedDocument
 from src.domain.exceptions import AIProcessingError
-from src.infrastructure.insights import build_prompt_payload
+from src.infrastructure.insights import build_document_review_payload, build_prompt_payload
 from src.schemas.insights import LegalSummary, RiskAssessment
 
 
@@ -66,6 +66,42 @@ class GeminiInsightProvider:
             )
         except Exception as exc:
             raise AIProcessingError("Gemini risk assessment generation failed") from exc
+        return result.payload.model_copy(
+            update={"provider": "gemini", "model": self._model}
+        )
+
+    def generate_document_summary(self, document: ParsedDocument) -> LegalSummary:
+        payload = build_document_review_payload(document).model_dump_json(
+            ensure_ascii=False,
+            indent=2,
+        )
+        prompt = config.DOCUMENT_REVIEW_SUMMARY_PROMPT.format(document_payload=payload)
+        try:
+            result = self._gateway.generate_json_result(
+                prompt,
+                LegalSummary,
+                max_output_tokens=4000,
+            )
+        except Exception as exc:
+            raise AIProcessingError("Gemini document summary generation failed") from exc
+        return result.payload.model_copy(
+            update={"provider": "gemini", "model": self._model}
+        )
+
+    def assess_document_risks(self, document: ParsedDocument) -> RiskAssessment:
+        payload = build_document_review_payload(document, risk_only=True).model_dump_json(
+            ensure_ascii=False,
+            indent=2,
+        )
+        prompt = config.DOCUMENT_REVIEW_RISK_PROMPT.format(document_payload=payload)
+        try:
+            result = self._gateway.generate_json_result(
+                prompt,
+                RiskAssessment,
+                max_output_tokens=4000,
+            )
+        except Exception as exc:
+            raise AIProcessingError("Gemini document risk assessment failed") from exc
         return result.payload.model_copy(
             update={"provider": "gemini", "model": self._model}
         )

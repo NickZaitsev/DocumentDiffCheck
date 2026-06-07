@@ -2,6 +2,7 @@ const reportsBox = document.querySelector("#reports");
 const refreshReports = document.querySelector("#refreshReports");
 const toasts = document.querySelector("#toasts");
 const themeToggle = document.querySelector("#themeToggle");
+const filterDocumentId = new URLSearchParams(window.location.search).get("document_id");
 
 const storedTheme = localStorage.getItem("ddc-theme");
 if (storedTheme) document.documentElement.dataset.theme = storedTheme;
@@ -13,12 +14,13 @@ themeToggle.addEventListener("click", () => {
 
 refreshReports.addEventListener("click", () => {
   loadReports();
-  toast("История сравнений обновлена.", "info");
+  toast(filterDocumentId ? "История документа обновлена." : "История сравнений обновлена.", "info");
 });
 
 async function loadReports() {
   try {
-    const response = await fetch("/api/reports");
+    const response = await fetch(reportsEndpoint());
+    if (!response.ok) throw new Error("Reports request failed");
     const reports = await response.json();
     renderReports(reports);
   } catch {
@@ -27,10 +29,17 @@ async function loadReports() {
   }
 }
 
+function reportsEndpoint() {
+  if (!filterDocumentId) {
+    return "/api/reports";
+  }
+  return `/api/documents/${encodeURIComponent(filterDocumentId)}/reports`;
+}
+
 function renderReports(reports) {
   if (!reports.length) {
     reportsBox.className = "reports-list empty";
-    reportsBox.innerHTML = `<p class="empty-note">Пока отчетов нет.</p>`;
+    reportsBox.innerHTML = `<p class="empty-note">${filterDocumentId ? "Для этого документа сравнений нет." : "Пока отчетов нет."}</p>`;
     return;
   }
 
@@ -39,10 +48,10 @@ function renderReports(reports) {
     .map(
       (report) => `
         <article class="report-item">
-          <div class="report-main">
+          <a class="report-main" href="${escapeHtml(report.report_url)}">
             <strong>${escapeHtml(report.old_filename)} → ${escapeHtml(report.new_filename)}</strong>
             <span>${formatDate(report.created_at)} · ${report.modified} изменено · ${report.risk_count} рисков</span>
-          </div>
+          </a>
           <div class="report-actions">
             <button class="btn-mini" type="button" data-share-url="${escapeHtml(report.report_url)}">Поделиться</button>
             <a class="btn-mini btn-mini-primary" href="${escapeHtml(report.report_url)}">Открыть</a>
