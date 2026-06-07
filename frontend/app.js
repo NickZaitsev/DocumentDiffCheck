@@ -248,7 +248,7 @@ function renderDocuments(documents) {
           <div class="doc-body">
             <strong title="${escapeHtml(doc.label)}">${escapeHtml(doc.label)}</strong>
             <div class="doc-meta">${formatDate(doc.created_at)} · ${formatBytes(doc.size_bytes)}</div>
-            <div class="doc-id" title="${escapeHtml(doc.document_id)}">${escapeHtml(shortId(doc.document_id))}</div>
+            <div class="doc-id" title="${escapeHtml(doc.document_id)}">Код: ${escapeHtml(documentCode(doc.document_id))}</div>
           </div>
           <button class="copy-id-btn" type="button" data-copy-id="${escapeHtml(doc.document_id)}" title="Скопировать ID" aria-label="Скопировать ID">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -294,7 +294,7 @@ function populateSelects(documents) {
   storedDocumentsList.innerHTML = documents
     .map(
       (doc) =>
-        `<option value="${escapeHtml(doc.label)}">${escapeHtml(doc.document_id)} · ${formatDate(doc.created_at)}</option>`,
+        `<option value="${escapeHtml(doc.label)}">${escapeHtml(documentCode(doc.document_id))} · ${formatDate(doc.created_at)}</option>`,
     )
     .join("");
 }
@@ -359,7 +359,7 @@ function setStoredSlot(slot, storedDocument) {
   zone.classList.add("has-file", "has-stored");
   zone.classList.remove("is-dragover");
   fileLabel.hidden = false;
-  fileLabel.innerHTML = `Загруженный: ${escapeHtml(storedDocument.label)}<br><small>${formatDate(storedDocument.created_at)} · <span title="${escapeHtml(storedDocument.document_id)}">${escapeHtml(shortId(storedDocument.document_id))}</span></small>`;
+  fileLabel.innerHTML = `Загруженный: ${escapeHtml(storedDocument.label)}<br><small>${formatDate(storedDocument.created_at)} · <span title="${escapeHtml(storedDocument.document_id)}">${escapeHtml(documentCode(storedDocument.document_id))}</span></small>`;
 }
 
 function findDocumentByPickerValue(value) {
@@ -369,11 +369,13 @@ function findDocumentByPickerValue(value) {
   }
   return (
     allDocuments.find((document) => document.document_id.toLowerCase() === normalized) ||
+    allDocuments.find((document) => documentCode(document.document_id).toLowerCase() === normalized) ||
     allDocuments.find((document) => document.label.toLowerCase() === normalized) ||
     allDocuments.find((document) => document.filename.toLowerCase() === normalized) ||
     allDocuments.find(
       (document) =>
         document.document_id.toLowerCase().includes(normalized) ||
+        documentCode(document.document_id).toLowerCase().includes(normalized) ||
         document.label.toLowerCase().includes(normalized),
     ) ||
     null
@@ -400,12 +402,9 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
-function shortId(value) {
+function documentCode(value) {
   const text = String(value);
-  if (text.length <= 12) {
-    return text;
-  }
-  return `${text.slice(0, 8)}…${text.slice(-4)}`;
+  return `DOC-${text.slice(-4).toUpperCase()}`;
 }
 
 /* ---------- Render results ---------- */
