@@ -227,7 +227,6 @@ refreshReportsBtn.addEventListener("click", () => {
 
 /* ---------- Comparison flow ---------- */
 async function runComparison(requestFactory, button) {
-  results.hidden = true;
   loading.hidden = false;
   if (button) setLoading(button, true);
   loading.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -237,13 +236,12 @@ async function runComparison(requestFactory, button) {
     if (!response.ok) {
       throw new Error(payload.message || payload.error || "Request failed");
     }
-    toast("Анализ готов. Открываю отчет.", "ok");
-    if (payload.report_url) {
-      window.location.assign(payload.report_url);
-    } else {
-      renderResults(payload);
-      results.scrollIntoView({ behavior: "smooth", block: "start" });
+    const reportUrl = payload.report_url || (payload.report_id ? `/report.html?id=${payload.report_id}` : "");
+    if (!reportUrl) {
+      throw new Error("Сервер не вернул report_id. Перезапустите python run.py и повторите сравнение.");
     }
+    toast("Анализ готов. Открываю отчет.", "ok");
+    window.location.assign(reportUrl);
   } catch (error) {
     toast(error.message, "err");
   } finally {
