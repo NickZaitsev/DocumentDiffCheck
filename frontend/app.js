@@ -327,7 +327,7 @@ function renderReports(reports) {
           </div>
           <div class="report-actions">
             <a class="btn-mini" href="${escapeHtml(report.report_url)}">Открыть</a>
-            <button class="btn-mini" type="button" data-share-url="${escapeHtml(report.report_url)}">Share</button>
+            <button class="btn-mini" type="button" data-share-url="${escapeHtml(report.report_url)}">Поделиться</button>
           </div>
         </article>
       `,
