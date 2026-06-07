@@ -135,10 +135,21 @@ class CompareByIdRequest(BaseModel):
     new_document_id: str
 
 
+class ReviewByIdRequest(BaseModel):
+    document_id: str
+
+
 class CompareResponse(BaseModel):
     report_id: str | None = None
     report_url: str | None = None
     comparison: ComparisonOut
+    summary: LegalSummary
+    risk_assessment: RiskAssessment
+
+
+class DocumentReviewResponse(BaseModel):
+    document: DocumentOut
+    blocks_count: int
     summary: LegalSummary
     risk_assessment: RiskAssessment
 
@@ -165,6 +176,8 @@ class ComparisonReportSummaryOut(BaseModel):
     report_id: str
     report_url: str
     created_at: datetime
+    old_document_id: str
+    new_document_id: str
     old_filename: str
     new_filename: str
     added: int

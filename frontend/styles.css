@@ -519,7 +519,8 @@ h1, h2, h3, p {
   color: var(--muted);
 }
 
-input[type="text"] {
+input[type="text"],
+input[type="search"] {
   width: 100%;
   min-height: 42px;
   border: 1px solid var(--line);
@@ -532,7 +533,8 @@ input[type="text"] {
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-input[type="text"]:focus {
+input[type="text"]:focus,
+input[type="search"]:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
@@ -560,6 +562,13 @@ input::placeholder { color: var(--muted); opacity: 0.6; }
 
 .docs-summary::-webkit-details-marker { display: none; }
 
+.docs-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
 .docs-title {
   display: inline-flex;
   align-items: center;
@@ -577,6 +586,13 @@ input::placeholder { color: var(--muted); opacity: 0.6; }
   font-weight: 700;
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+.docs-hint {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
 }
 
 .docs-tools {
@@ -702,6 +718,23 @@ input::placeholder { color: var(--muted); opacity: 0.6; }
   color: var(--accent);
 }
 
+.btn-mini-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 8px 18px -12px var(--accent);
+}
+
+.btn-mini-primary:hover {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+  color: #fff;
+}
+
+.btn-mini-primary:active {
+  transform: translateY(1px);
+}
+
 .history-card {
   margin-top: 18px;
 }
@@ -718,6 +751,27 @@ input::placeholder { color: var(--muted); opacity: 0.6; }
 
 .documents-page-card .documents.empty {
   min-height: 160px;
+}
+
+.documents-search {
+  position: relative;
+  margin: -4px 0 16px;
+}
+
+.documents-search svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  width: 17px;
+  height: 17px;
+  color: var(--muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.documents-search input {
+  padding-left: 38px;
+  font-family: inherit;
 }
 
 .reports-list {

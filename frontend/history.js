@@ -44,8 +44,8 @@ function renderReports(reports) {
             <span>${formatDate(report.created_at)} · ${report.modified} изменено · ${report.risk_count} рисков</span>
           </div>
           <div class="report-actions">
-            <a class="btn-mini" href="${escapeHtml(report.report_url)}">Открыть</a>
             <button class="btn-mini" type="button" data-share-url="${escapeHtml(report.report_url)}">Поделиться</button>
+            <a class="btn-mini btn-mini-primary" href="${escapeHtml(report.report_url)}">Открыть</a>
           </div>
         </article>
       `,

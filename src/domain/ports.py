@@ -30,6 +30,12 @@ class InsightProvider(Protocol):
     def assess_risks(self, comparison: ComparisonResult) -> RiskAssessment:
         """Extract financial risks from changed clauses."""
 
+    def generate_document_summary(self, document: ParsedDocument) -> LegalSummary:
+        """Generate lawyer-friendly structured summary for one document."""
+
+    def assess_document_risks(self, document: ParsedDocument) -> RiskAssessment:
+        """Extract financial risk candidates from one document."""
+
 
 class FileHasher(Protocol):
     def sha256(self, path: Path) -> str:

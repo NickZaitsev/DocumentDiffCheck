@@ -38,6 +38,8 @@ class ComparisonReportRecord(BaseModel):
             report_id=self.report_id,
             report_url=_report_url(self.report_id),
             created_at=self.created_at,
+            old_document_id=self.response.comparison.old_document_id,
+            new_document_id=self.response.comparison.new_document_id,
             old_filename=self.response.comparison.old_filename,
             new_filename=self.response.comparison.new_filename,
             added=stats.added,
@@ -85,6 +87,18 @@ class LocalComparisonReportRepository:
                 key=lambda item: item.created_at,
                 reverse=True,
             )
+        )
+
+    def list_by_document(self, document_id: str) -> tuple[ComparisonReportSummaryOut, ...]:
+        return tuple(
+            record.to_summary()
+            for record in sorted(
+                self._load_records().values(),
+                key=lambda item: item.created_at,
+                reverse=True,
+            )
+            if record.response.comparison.old_document_id == document_id
+            or record.response.comparison.new_document_id == document_id
         )
 
     def _load_records(self) -> dict[str, ComparisonReportRecord]:

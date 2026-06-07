@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ddc",
+      "runtimeExecutable": "C:\\Users\\nenavision\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "src.api.app:app", "--host", "127.0.0.1", "--port", "8011"],
+      "port": 8011
+    }
+  ]
+}

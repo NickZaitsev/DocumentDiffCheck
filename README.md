@@ -34,6 +34,9 @@ Open:
 http://127.0.0.1:8010
 ```
 
+The uploaded document list is available at `http://127.0.0.1:8010/documents.html`
+and supports search by document name, ID, date, and size.
+
 ## AI provider config
 
 Create a local `.env` file from `.env.example`. Do not commit `.env` or hard-code

@@ -1,7 +1,10 @@
 const documentsPageList = document.querySelector("#documentsPageList");
+const documentsSearch = document.querySelector("#documentsSearch");
 const refreshDocumentsPage = document.querySelector("#refreshDocumentsPage");
 const toasts = document.querySelector("#toasts");
 const themeToggle = document.querySelector("#themeToggle");
+
+let allDocuments = [];
 
 const storedTheme = localStorage.getItem("ddc-theme");
 if (storedTheme) document.documentElement.dataset.theme = storedTheme;
@@ -16,21 +19,41 @@ refreshDocumentsPage.addEventListener("click", () => {
   toast("Список документов обновлен.", "info");
 });
 
+documentsSearch.addEventListener("input", () => {
+  renderFilteredDocuments();
+});
+
+documentsSearch.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || !documentsSearch.value) {
+    return;
+  }
+
+  documentsSearch.value = "";
+  renderFilteredDocuments();
+});
+
 async function loadDocuments() {
   try {
     const response = await fetch("/api/documents");
     const documents = sortDocumentsNewestFirst(await response.json());
-    renderDocuments(withDisplayLabels(documents));
+    allDocuments = withDisplayLabels(documents);
+    renderFilteredDocuments();
   } catch {
+    allDocuments = [];
     documentsPageList.className = "documents page-documents empty";
     documentsPageList.innerHTML = `<p class="empty-note">Не удалось загрузить документы.</p>`;
   }
 }
 
-function renderDocuments(documents) {
+function renderFilteredDocuments() {
+  const query = documentsSearch.value.trim();
+  renderDocuments(filterDocuments(allDocuments, query), { query });
+}
+
+function renderDocuments(documents, { query = "" } = {}) {
   if (!documents.length) {
     documentsPageList.className = "documents page-documents empty";
-    documentsPageList.innerHTML = `<p class="empty-note">Пока документов нет.</p>`;
+    documentsPageList.innerHTML = `<p class="empty-note">${query ? "Ничего не найдено." : "Пока документов нет."}</p>`;
     return;
   }
 
@@ -78,6 +101,35 @@ function renderDocuments(documents) {
       block: "center",
     });
   }
+}
+
+function filterDocuments(documents, query) {
+  const terms = normalizeSearch(query).split(/\s+/).filter(Boolean);
+  if (!terms.length) {
+    return documents;
+  }
+
+  return documents.filter((document) => {
+    const searchText = documentSearchText(document);
+    return terms.every((term) => searchText.includes(term));
+  });
+}
+
+function documentSearchText(document) {
+  return [
+    document.label,
+    document.filename,
+    document.document_id,
+    displayDocumentId(document.document_id),
+    formatDate(document.created_at),
+    formatBytes(document.size_bytes),
+  ]
+    .map(normalizeSearch)
+    .join(" ");
+}
+
+function normalizeSearch(value) {
+  return String(value ?? "").toLowerCase().replaceAll("ё", "е").trim();
 }
 
 function withDisplayLabels(documents) {

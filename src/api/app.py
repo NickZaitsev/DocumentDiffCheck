@@ -101,6 +101,14 @@ def create_app() -> FastAPI:
             filename=document.filename,
         )
 
+    @app.get(
+        "/api/documents/{document_id}/reports",
+        response_model=list[ComparisonReportSummaryOut],
+    )
+    def list_document_reports(document_id: str) -> list[ComparisonReportSummaryOut]:
+        repository.get(document_id)
+        return list(report_repository.list_by_document(document_id))
+
     @app.post("/api/comparisons", response_model=CompareResponse)
     def compare_by_id(payload: CompareByIdRequest) -> CompareResponse:
         result = compare_use_case.execute_by_id(
