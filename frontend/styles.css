@@ -373,7 +373,7 @@ h1, h2, h3, p {
 .dz-text em {
   font-style: normal;
   font-weight: 600;
-  color: var(--text);
+  color: var(--accent);
 }
 
 .dz-file {
@@ -387,39 +387,31 @@ h1, h2, h3, p {
   word-break: break-all;
 }
 
-.dropzone.has-file .dz-icon,
-.dropzone.has-file .dz-text { display: none; }
-
-.find-doc-btn {
-  position: relative;
-  z-index: 2;
-  border: 0;
-  background: transparent;
-  color: var(--accent);
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 2px 6px;
-}
-
-.find-doc-btn:hover { text-decoration: underline; }
+.dropzone.has-file .dz-icon { display: none; }
 
 .stored-picker {
   position: relative;
   z-index: 2;
-  width: min(100%, 300px);
+  width: min(100%, 320px);
+  margin-top: 2px;
 }
 
 .stored-picker input {
   width: 100%;
-  min-height: 38px;
+  min-height: 36px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--panel);
   color: var(--text);
   padding: 8px 10px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
+}
+
+.stored-picker input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .dz-arrow {

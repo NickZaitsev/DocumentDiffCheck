@@ -84,19 +84,6 @@ document.querySelectorAll(".dropzone").forEach((zone) => {
   });
 });
 
-document.querySelectorAll("[data-picker-toggle]").forEach((button) => {
-  button.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const slot = button.dataset.pickerToggle;
-    const picker = document.querySelector(`[data-picker-box="${slot}"]`);
-    picker.hidden = !picker.hidden;
-    if (!picker.hidden) {
-      picker.querySelector("input").focus();
-    }
-  });
-});
-
 document.querySelectorAll("[data-picker]").forEach((input) => {
   input.addEventListener("change", () => {
     const document = findDocumentByPickerValue(input.value);
