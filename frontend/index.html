@@ -7,144 +7,72 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <main class="app-shell">
-      <header class="topbar">
-        <div class="brand">
-          <div class="brand-mark" aria-hidden="true">DD</div>
-          <div>
-            <h1>Document Diff Check</h1>
-            <p>DOCX comparison workspace</p>
-          </div>
+    <main class="app">
+      <section class="toolbar">
+        <div>
+          <h1>Document Diff Check</h1>
+          <p>DOCX diff, summary для юриста и первичная оценка финансовых рисков.</p>
         </div>
-        <div class="topbar-actions">
-          <span id="apiState" class="health-pill">API</span>
-          <button id="refreshDocuments" class="button secondary" type="button">
-            Refresh
-          </button>
-        </div>
-      </header>
+        <button id="refreshDocuments" type="button">Обновить документы</button>
+      </section>
+
+      <section class="grid">
+        <form id="uploadCompareForm" class="panel">
+          <h2>Сравнить два DOCX</h2>
+          <label>
+            Старая версия
+            <input id="oldFile" name="old_file" type="file" accept=".docx" required />
+          </label>
+          <label>
+            Новая версия
+            <input id="newFile" name="new_file" type="file" accept=".docx" required />
+          </label>
+          <button type="submit">Сравнить</button>
+        </form>
+
+        <form id="idCompareForm" class="panel">
+          <h2>Сравнить по document ID</h2>
+          <label>
+            Old document ID
+            <input id="oldDocumentId" type="text" autocomplete="off" />
+          </label>
+          <label>
+            New document ID
+            <input id="newDocumentId" type="text" autocomplete="off" />
+          </label>
+          <button type="submit">Сравнить по ID</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>Загруженные документы</h2>
+        <div id="documents" class="documents empty">Пока документов нет.</div>
+      </section>
 
       <section id="status" class="status" hidden></section>
 
-      <section class="workspace">
-        <aside class="sidebar" aria-label="Stored documents">
-          <div class="section-heading">
-            <div>
-              <h2>Documents</h2>
-              <p id="documentsMeta">No stored files</p>
-            </div>
-          </div>
-          <div id="documents" class="documents empty">No documents uploaded.</div>
-        </aside>
-
-        <section class="compare-surface" aria-label="Comparison controls">
-          <div class="mode-tabs" role="tablist" aria-label="Comparison mode">
-            <button
-              id="uploadModeTab"
-              class="mode-tab active"
-              type="button"
-              role="tab"
-              aria-selected="true"
-              data-mode="upload"
-            >
-              Upload files
-            </button>
-            <button
-              id="idModeTab"
-              class="mode-tab"
-              type="button"
-              role="tab"
-              aria-selected="false"
-              data-mode="id"
-            >
-              Use document IDs
-            </button>
-          </div>
-
-          <form id="uploadCompareForm" class="compare-form" data-mode-panel="upload">
-            <div class="upload-grid">
-              <label class="dropzone" for="oldFile" data-dropzone="old">
-                <span class="dropzone-label">Old version</span>
-                <strong id="oldFileName">Select DOCX</strong>
-                <span id="oldFileMeta">Drop file here or browse</span>
-                <input id="oldFile" name="old_file" type="file" accept=".docx" required />
-              </label>
-
-              <label class="dropzone" for="newFile" data-dropzone="new">
-                <span class="dropzone-label">New version</span>
-                <strong id="newFileName">Select DOCX</strong>
-                <span id="newFileMeta">Drop file here or browse</span>
-                <input id="newFile" name="new_file" type="file" accept=".docx" required />
-              </label>
-            </div>
-            <div class="form-actions">
-              <button class="button primary" type="submit">Compare uploaded files</button>
-            </div>
-          </form>
-
-          <form id="idCompareForm" class="compare-form hidden" data-mode-panel="id">
-            <div class="id-grid">
-              <label>
-                <span>Old document ID</span>
-                <input id="oldDocumentId" type="text" autocomplete="off" />
-              </label>
-              <label>
-                <span>New document ID</span>
-                <input id="newDocumentId" type="text" autocomplete="off" />
-              </label>
-            </div>
-            <div class="form-actions">
-              <button class="button primary" type="submit">Compare selected IDs</button>
-            </div>
-          </form>
-        </section>
-      </section>
-
       <section id="results" class="results" hidden>
-        <div class="result-header">
-          <div>
-            <p class="eyebrow">Comparison result</p>
-            <h2 id="comparisonTitle">Document changes</h2>
-          </div>
-          <span id="providerBadge" class="provider-badge"></span>
-        </div>
+        <article class="panel">
+          <h2>Статистика</h2>
+          <div id="stats" class="stats"></div>
+        </article>
 
-        <section id="stats" class="stats" aria-label="Diff statistics"></section>
+        <article class="panel">
+          <h2>Правки документа</h2>
+          <div id="summary"></div>
+        </article>
 
-        <section class="result-grid">
-          <article class="analysis-panel summary-panel">
-            <div class="section-heading">
-              <div>
-                <h2>Legal summary</h2>
-                <p>Material changes and review points</p>
-              </div>
-            </div>
-            <div id="summary"></div>
-          </article>
+        <article class="panel">
+          <h2>Финансовые риски</h2>
+          <div id="risks"></div>
+        </article>
 
-          <article class="analysis-panel risks-panel">
-            <div class="section-heading">
-              <div>
-                <h2>Financial risks</h2>
-                <p>Detected risk candidates</p>
-              </div>
-            </div>
-            <div id="risks"></div>
-          </article>
-        </section>
-
-        <article class="analysis-panel">
-          <div class="section-heading">
-            <div>
-              <h2>Clause diff</h2>
-              <p>Changed blocks only</p>
-            </div>
-          </div>
+        <article class="panel">
+          <h2>Diffs</h2>
           <div id="changes"></div>
         </article>
       </section>
     </main>
-
     <script src="/app.js"></script>
   </body>
 </html>
