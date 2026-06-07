@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 from src.application.use_cases import UploadDocumentUseCase
@@ -18,6 +19,7 @@ class RecordingRepository:
             content_type=content_type,
             path=Path("document-1.docx"),
             size_bytes=len(content),
+            created_at=datetime(2026, 6, 7, tzinfo=UTC),
         )
 
 

@@ -17,6 +17,10 @@ class DocumentNotFoundError(DomainError):
     """Raised when a stored document does not exist."""
 
 
+class ReportNotFoundError(DomainError):
+    """Raised when a stored comparison report does not exist."""
+
+
 class ComparisonError(DomainError):
     """Raised when documents cannot be compared."""
 

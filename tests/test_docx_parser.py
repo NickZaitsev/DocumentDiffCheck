@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 from src.domain.entities import StoredDocument
@@ -14,6 +15,7 @@ def test_docx_parser_reads_sample_contract_blocks() -> None:
         content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         path=sample,
         size_bytes=sample.stat().st_size,
+        created_at=datetime(2026, 6, 7, tzinfo=UTC),
     )
 
     parsed = DocxDocumentParser().parse(stored)

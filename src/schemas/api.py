@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 from src.domain.entities import (
@@ -21,6 +23,7 @@ class DocumentOut(BaseModel):
     filename: str
     content_type: str
     size_bytes: int
+    created_at: datetime
 
     @classmethod
     def from_domain(cls, document: StoredDocument) -> DocumentOut:
@@ -29,6 +32,7 @@ class DocumentOut(BaseModel):
             filename=document.filename,
             content_type=document.content_type,
             size_bytes=document.size_bytes,
+            created_at=document.created_at,
         )
 
 
@@ -132,7 +136,40 @@ class CompareByIdRequest(BaseModel):
 
 
 class CompareResponse(BaseModel):
+    report_id: str | None = None
+    report_url: str | None = None
     comparison: ComparisonOut
     summary: LegalSummary
     risk_assessment: RiskAssessment
+
+
+class ComparisonReportOut(BaseModel):
+    report_id: str
+    report_url: str
+    created_at: datetime
+    comparison: ComparisonOut
+    summary: LegalSummary
+    risk_assessment: RiskAssessment
+
+    def to_response(self) -> CompareResponse:
+        return CompareResponse(
+            report_id=self.report_id,
+            report_url=self.report_url,
+            comparison=self.comparison,
+            summary=self.summary,
+            risk_assessment=self.risk_assessment,
+        )
+
+
+class ComparisonReportSummaryOut(BaseModel):
+    report_id: str
+    report_url: str
+    created_at: datetime
+    old_filename: str
+    new_filename: str
+    added: int
+    removed: int
+    modified: int
+    risk_count: int
+    risk_level: str
 

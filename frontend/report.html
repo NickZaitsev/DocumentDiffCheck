@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Comparison Report · Document Diff Check</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand report-brand" href="/">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <path d="M14 2v6h6" />
+              <path d="M9 13h6M9 17h3" />
+            </svg>
+          </span>
+          <div class="brand-text">
+            <strong>Document Diff Check</strong>
+            <span>Отчет сравнения</span>
+          </div>
+        </a>
+        <button id="shareReport" class="btn-mini" type="button">Share</button>
+      </div>
+    </header>
+
+    <main class="app">
+      <section id="reportStatus" class="loading-card">
+        <span class="spinner spinner-lg"></span>
+        <p>Загружаю отчет…</p>
+      </section>
+
+      <section id="reportView" class="results" hidden>
+        <div class="results-head">
+          <div>
+            <h1 id="reportTitle">Отчет сравнения</h1>
+            <p id="reportDate" class="report-date"></p>
+          </div>
+          <div id="resultsMeta" class="results-meta"></div>
+          <div id="stats" class="stats"></div>
+        </div>
+
+        <nav class="tabs" role="tablist">
+          <button class="tab is-active" type="button" data-tab="summary">Правки</button>
+          <button class="tab" type="button" data-tab="risks">
+            Финансовые риски <span id="riskCount" class="tab-count" hidden></span>
+          </button>
+          <button class="tab" type="button" data-tab="changes">
+            Diffs <span id="changeCount" class="tab-count" hidden></span>
+          </button>
+        </nav>
+
+        <div class="tab-panels">
+          <div id="panel-summary" class="tab-panel is-active" data-panel="summary"></div>
+          <div id="panel-risks" class="tab-panel" data-panel="risks"></div>
+          <div id="panel-changes" class="tab-panel" data-panel="changes"></div>
+        </div>
+      </section>
+    </main>
+
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+    <script src="/report.js"></script>
+  </body>
+</html>

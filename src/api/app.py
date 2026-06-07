@@ -22,13 +22,21 @@ from src.domain.exceptions import (
     DocumentParsingError,
     DocumentValidationError,
     DomainError,
+    ReportNotFoundError,
 )
 from src.infrastructure.docx_parser import DocxDocumentParser
 from src.infrastructure.insights import FallbackInsightProvider, ResilientInsightProvider
+from src.infrastructure.reports import LocalComparisonReportRepository
 from src.infrastructure.storage import LocalDocumentRepository
 from src.integrations.gemini_provider import GeminiInsightProvider
 from src.integrations.openrouter_provider import OpenRouterInsightProvider
-from src.schemas.api import CompareByIdRequest, CompareResponse, DocumentOut
+from src.schemas.api import (
+    CompareByIdRequest,
+    CompareResponse,
+    ComparisonReportOut,
+    ComparisonReportSummaryOut,
+    DocumentOut,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +58,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(DomainError, domain_error_handler)
 
     repository = LocalDocumentRepository()
+    report_repository = LocalComparisonReportRepository()
     parser = DocxDocumentParser()
     comparison_service = DocumentComparisonService()
     insight_provider = ResilientInsightProvider(
@@ -88,7 +97,7 @@ def create_app() -> FastAPI:
             old_document_id=payload.old_document_id,
             new_document_id=payload.new_document_id,
         )
-        return result.to_response()
+        return report_repository.save(result.to_response()).to_response()
 
     @app.post("/api/comparisons/upload", response_model=CompareResponse)
     async def compare_uploads(
@@ -105,7 +114,15 @@ def create_app() -> FastAPI:
             new_content_type=new_file.content_type or "application/octet-stream",
             new_content=new_content,
         )
-        return result.to_response()
+        return report_repository.save(result.to_response()).to_response()
+
+    @app.get("/api/reports", response_model=list[ComparisonReportSummaryOut])
+    def list_reports() -> list[ComparisonReportSummaryOut]:
+        return list(report_repository.list())
+
+    @app.get("/api/reports/{report_id}", response_model=ComparisonReportOut)
+    def get_report(report_id: str) -> ComparisonReportOut:
+        return report_repository.get(report_id)
 
     if config.FRONTEND_DIR.exists():
         app.mount("/", StaticFiles(directory=config.FRONTEND_DIR, html=True), name="ui")
@@ -152,6 +169,8 @@ def _status_for_domain_error(exc: DomainError) -> int:
     if isinstance(exc, DocumentValidationError):
         return 400
     if isinstance(exc, DocumentNotFoundError):
+        return 404
+    if isinstance(exc, ReportNotFoundError):
         return 404
     if isinstance(exc, (DocumentParsingError, ComparisonError)):
         return 422
