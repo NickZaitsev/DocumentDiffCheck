@@ -415,7 +415,7 @@ h1, h2, h3, p {
   border-style: solid;
   border-color: var(--accent);
   background: var(--accent-soft);
-  justify-content: flex-end;
+  justify-content: center;
 }
 
 .dropzone.has-stored {
@@ -473,7 +473,7 @@ h1, h2, h3, p {
   display: grid;
   gap: 3px;
   width: min(100%, 320px);
-  padding: 10px 12px;
+  padding: 10px 38px 10px 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--panel);
@@ -482,6 +482,28 @@ h1, h2, h3, p {
   font-size: 12px;
   font-weight: 600;
   color: var(--text);
+}
+
+.dz-clear {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dz-clear:hover {
+  border-color: var(--removed);
+  color: var(--removed);
 }
 
 .dz-file-kind {
@@ -507,7 +529,9 @@ h1, h2, h3, p {
 }
 
 .dropzone.has-file .dz-icon,
-.dropzone.has-file .dz-text {
+.dropzone.has-file .dz-text,
+.dropzone.has-file .dz-tag,
+.dropzone.has-file .stored-picker {
   display: none;
 }
 

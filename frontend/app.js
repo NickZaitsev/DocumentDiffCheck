@@ -54,6 +54,15 @@ document.querySelectorAll(".dropzone").forEach((zone) => {
     }
   };
 
+  fileLabel.addEventListener("click", (event) => {
+    if (!event.target.closest("[data-clear-selection]")) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    clearSlotSelection(slot);
+  });
+
   input.addEventListener("change", reflect);
 
   ["dragenter", "dragover"].forEach((evt) =>
@@ -336,10 +345,12 @@ function setStoredSlot(slot, storedDocument) {
 
 function clearStoredSlot(slot) {
   selectedStored[slot] = null;
+  const searchInput = document.querySelector(`[data-picker="${slot}"]`);
   const fileInput = document.querySelector(`#${slot}File`);
   const zone = document.querySelector(`[data-for="${slot}File"]`);
   const fileLabel = zone.querySelector(".dz-file");
 
+  searchInput.value = "";
   zone.classList.remove("has-stored");
   if (!fileInput.files[0]) {
     zone.classList.remove("has-file");
@@ -348,8 +359,23 @@ function clearStoredSlot(slot) {
   }
 }
 
+function clearSlotSelection(slot) {
+  selectedStored[slot] = null;
+  const fileInput = document.querySelector(`#${slot}File`);
+  const searchInput = document.querySelector(`[data-picker="${slot}"]`);
+  const zone = document.querySelector(`[data-for="${slot}File"]`);
+  const fileLabel = zone.querySelector(".dz-file");
+
+  fileInput.value = "";
+  searchInput.value = "";
+  zone.classList.remove("has-file", "has-stored", "is-dragover");
+  fileLabel.hidden = true;
+  fileLabel.innerHTML = "";
+}
+
 function renderSelectedFile(kind, name, meta = null) {
   return `
+    <button class="dz-clear" type="button" data-clear-selection aria-label="Убрать документ" title="Убрать документ">×</button>
     <span class="dz-file-kind">${escapeHtml(kind)}</span>
     <span class="dz-file-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
     ${

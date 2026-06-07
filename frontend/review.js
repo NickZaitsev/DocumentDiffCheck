@@ -50,6 +50,15 @@ function reflectFileSelection() {
   }
 }
 
+fileLabel.addEventListener("click", (event) => {
+  if (!event.target.closest("[data-clear-selection]")) {
+    return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  clearDocumentSelection();
+});
+
 reviewFile.addEventListener("change", reflectFileSelection);
 
 ["dragenter", "dragover"].forEach((eventName) =>
@@ -388,6 +397,7 @@ function setStoredDocument(storedDocument) {
 
 function clearStoredDocument() {
   selectedStored = null;
+  reviewStoredSearch.value = "";
   zone.classList.remove("has-stored");
   if (!reviewFile.files[0]) {
     zone.classList.remove("has-file");
@@ -396,8 +406,18 @@ function clearStoredDocument() {
   }
 }
 
+function clearDocumentSelection() {
+  selectedStored = null;
+  reviewFile.value = "";
+  reviewStoredSearch.value = "";
+  zone.classList.remove("has-file", "has-stored", "is-dragover");
+  fileLabel.hidden = true;
+  fileLabel.innerHTML = "";
+}
+
 function renderSelectedFile(kind, name, meta = null) {
   return `
+    <button class="dz-clear" type="button" data-clear-selection aria-label="Убрать документ" title="Убрать документ">×</button>
     <span class="dz-file-kind">${escapeHtml(kind)}</span>
     <span class="dz-file-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
     ${
