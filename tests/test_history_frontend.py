@@ -17,6 +17,8 @@ def test_history_page_exposes_search_and_filters() -> None:
     assert 'fetch("/api/reviews")' in script
     assert 'normalizeComparison(report)' in script
     assert 'normalizeReview(review)' in script
+    assert 'reports: "report"' in script
+    assert 'reviews: "review"' in script
 
 
 def test_history_report_main_links_to_detail_pages() -> None:

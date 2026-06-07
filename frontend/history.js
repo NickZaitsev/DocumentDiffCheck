@@ -13,6 +13,11 @@ const historyState = {
   query: filterDocumentId || "",
 };
 
+const historyFilterKinds = {
+  reports: "report",
+  reviews: "review",
+};
+
 let allHistoryItems = [];
 
 const storedTheme = localStorage.getItem("ddc-theme");
@@ -85,7 +90,8 @@ function setCount(element, value) {
 
 function renderHistory() {
   const filtered = allHistoryItems.filter((item) => {
-    if (historyState.filter !== "all" && item.kind !== historyState.filter) {
+    const filterKind = historyFilterKinds[historyState.filter] || historyState.filter;
+    if (historyState.filter !== "all" && item.kind !== filterKind) {
       return false;
     }
     if (filterDocumentId && !item.document_ids.includes(filterDocumentId)) {
