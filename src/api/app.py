@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
@@ -90,6 +91,15 @@ def create_app() -> FastAPI:
     @app.get("/api/documents", response_model=list[DocumentOut])
     def list_documents() -> list[DocumentOut]:
         return [DocumentOut.from_domain(document) for document in repository.list()]
+
+    @app.get("/api/documents/{document_id}/download")
+    def download_document(document_id: str) -> FileResponse:
+        document = repository.get(document_id)
+        return FileResponse(
+            document.path,
+            media_type=document.content_type,
+            filename=document.filename,
+        )
 
     @app.post("/api/comparisons", response_model=CompareResponse)
     def compare_by_id(payload: CompareByIdRequest) -> CompareResponse:

@@ -329,6 +329,7 @@ h1, h2, h3, p {
   border-style: solid;
   border-color: var(--accent);
   background: var(--accent-soft);
+  justify-content: flex-end;
 }
 
 .dropzone.has-stored {
@@ -381,17 +382,48 @@ h1, h2, h3, p {
 }
 
 .dz-file {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 3px;
+  width: min(100%, 320px);
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+  text-align: left;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text);
-  max-width: 100%;
-  word-break: break-all;
 }
 
-.dropzone.has-file .dz-icon { display: none; }
+.dz-file-kind {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dz-file-name {
+  overflow-wrap: anywhere;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.dz-file-meta {
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.dropzone.has-file .dz-icon,
+.dropzone.has-file .dz-text {
+  display: none;
+}
 
 .stored-picker {
   position: relative;
@@ -633,6 +665,7 @@ input::placeholder { color: var(--muted); opacity: 0.6; }
 }
 
 .copy-id-btn,
+.download-doc-btn,
 .btn-mini {
   display: inline-flex;
   align-items: center;
@@ -649,18 +682,21 @@ input::placeholder { color: var(--muted); opacity: 0.6; }
   cursor: pointer;
 }
 
-.copy-id-btn {
+.copy-id-btn,
+.download-doc-btn {
   width: 34px;
   min-width: 34px;
   padding: 0;
 }
 
-.copy-id-btn svg {
+.copy-id-btn svg,
+.download-doc-btn svg {
   width: 16px;
   height: 16px;
 }
 
 .copy-id-btn:hover,
+.download-doc-btn:hover,
 .btn-mini:hover {
   border-color: var(--accent);
   color: var(--accent);

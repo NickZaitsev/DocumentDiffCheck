@@ -33,20 +33,23 @@ themeToggle.addEventListener("click", () => {
 document.querySelectorAll(".dropzone").forEach((zone) => {
   const input = zone.querySelector('input[type="file"]');
   const fileLabel = zone.querySelector(".dz-file");
+  const searchInput = zone.querySelector("[data-picker]");
   const slot = input.id === "oldFile" ? "old" : "new";
 
   const reflect = () => {
     const file = input.files[0];
     if (file) {
       selectedStored[slot] = null;
+      searchInput.value = "";
       zone.classList.add("has-file");
       zone.classList.remove("has-stored");
       fileLabel.hidden = false;
-      fileLabel.innerHTML = `Файл: ${escapeHtml(file.name)}`;
+      fileLabel.innerHTML = renderSelectedFile("Локальный файл", file.name);
     } else {
       zone.classList.remove("has-file");
       if (!selectedStored[slot]) {
         fileLabel.hidden = true;
+        fileLabel.innerHTML = "";
       }
     }
   };
@@ -84,12 +87,19 @@ document.querySelectorAll(".dropzone").forEach((zone) => {
 
 document.querySelectorAll("[data-picker]").forEach((input) => {
   input.addEventListener("change", () => {
+    const slot = input.dataset.picker;
+    if (!input.value.trim()) {
+      clearStoredSlot(slot);
+      return;
+    }
+
     const document = findDocumentByPickerValue(input.value);
     if (!document) {
       toast("Документ не найден. Введите название или ID из списка.", "err");
+      input.value = selectedStored[slot]?.label || "";
       return;
     }
-    setStoredSlot(input.dataset.picker, document);
+    setStoredSlot(slot, document);
   });
 });
 
@@ -249,6 +259,13 @@ function renderDocuments(documents) {
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
             </svg>
           </button>
+          <a class="download-doc-btn" href="/api/documents/${encodeURIComponent(doc.document_id)}/download" title="Скачать документ" aria-label="Скачать документ">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <path d="M7 10l5 5 5-5"></path>
+              <path d="M12 15V3"></path>
+            </svg>
+          </a>
         </div>
       `,
     )
@@ -310,7 +327,37 @@ function setStoredSlot(slot, storedDocument) {
   zone.classList.add("has-file", "has-stored");
   zone.classList.remove("is-dragover");
   fileLabel.hidden = false;
-  fileLabel.innerHTML = `Загруженный: ${escapeHtml(storedDocument.label)}<br><small>${formatDate(storedDocument.created_at)} · <span title="${escapeHtml(storedDocument.document_id)}">${escapeHtml(documentCode(storedDocument.document_id))}</span></small>`;
+  fileLabel.innerHTML = renderSelectedFile("Загруженный документ", storedDocument.label, {
+    date: formatDate(storedDocument.created_at),
+    code: documentCode(storedDocument.document_id),
+    id: storedDocument.document_id,
+  });
+}
+
+function clearStoredSlot(slot) {
+  selectedStored[slot] = null;
+  const fileInput = document.querySelector(`#${slot}File`);
+  const zone = document.querySelector(`[data-for="${slot}File"]`);
+  const fileLabel = zone.querySelector(".dz-file");
+
+  zone.classList.remove("has-stored");
+  if (!fileInput.files[0]) {
+    zone.classList.remove("has-file");
+    fileLabel.hidden = true;
+    fileLabel.innerHTML = "";
+  }
+}
+
+function renderSelectedFile(kind, name, meta = null) {
+  return `
+    <span class="dz-file-kind">${escapeHtml(kind)}</span>
+    <span class="dz-file-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+    ${
+      meta
+        ? `<span class="dz-file-meta">${escapeHtml(meta.date)} · <span title="${escapeHtml(meta.id)}">${escapeHtml(meta.code)}</span></span>`
+        : ""
+    }
+  `;
 }
 
 function findDocumentByPickerValue(value) {
