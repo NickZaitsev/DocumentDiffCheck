@@ -620,6 +620,17 @@ input::placeholder { color: var(--muted); opacity: 0.6; }
   cursor: pointer;
 }
 
+.copy-id-btn {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+}
+
+.copy-id-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
 .copy-id-btn:hover,
 .btn-mini:hover {
   border-color: var(--accent);
