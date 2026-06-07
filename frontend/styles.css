@@ -102,6 +102,7 @@ h1, h2, h3, p {
   width: min(1180px, calc(100vw - 32px));
   margin: 0 auto;
   height: 64px;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -151,6 +152,14 @@ h1, h2, h3, p {
 .brand-text span {
   font-size: 12px;
   color: var(--muted);
+}
+
+.topbar-menu {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
 }
 
 .topnav {
@@ -212,6 +221,67 @@ h1, h2, h3, p {
 .icon-moon { display: none; }
 [data-theme="dark"] .icon-sun { display: none; }
 [data-theme="dark"] .icon-moon { display: block; }
+
+@media (max-width: 860px) {
+  .topbar-inner {
+    height: 60px;
+    gap: 12px;
+  }
+
+  .nav-toggle { display: grid; }
+
+  .topbar-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    left: 0;
+    z-index: 40;
+    display: grid;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-8px);
+    transition: opacity 0.16s ease, transform 0.16s ease;
+  }
+
+  .topbar.nav-open .topbar-menu {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+
+  .topnav {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .topnav a {
+    width: 100%;
+    min-height: 44px;
+    justify-content: flex-start;
+  }
+
+  .theme-toggle {
+    width: 100%;
+    justify-content: flex-start;
+    min-height: 44px;
+    padding: 0 12px;
+  }
+
+  .theme-toggle::after {
+    content: "Сменить тему";
+    margin-left: 10px;
+    font-size: 14px;
+    font-weight: 650;
+  }
+}
 
 /* ---------- Layout ---------- */
 .app {
@@ -1505,28 +1575,6 @@ input::placeholder { color: var(--muted); opacity: 0.6; }
   .history-toolbar { margin-inline: 0; }
   .history-filters { flex-direction: column; }
   .history-filter { width: 100%; justify-content: center; }
-  .topbar-inner {
-    height: auto;
-    min-height: 64px;
-    flex-wrap: wrap;
-    padding: 10px 0;
-  }
-  .nav-toggle { display: grid; }
-  .topnav {
-    order: 3;
-    display: none;
-    width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
-    padding-top: 10px;
-  }
-  .topbar.nav-open .topnav { display: flex; }
-  .topnav a {
-    width: 100%;
-    min-height: 40px;
-    justify-content: flex-start;
-  }
   .card-head { flex-wrap: wrap; gap: 10px; }
   .report-title-row {
     align-items: stretch;

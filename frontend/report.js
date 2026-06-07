@@ -11,6 +11,15 @@ const riskCount = document.querySelector("#riskCount");
 const changeCount = document.querySelector("#changeCount");
 const shareReport = document.querySelector("#shareReport");
 const toasts = document.querySelector("#toasts");
+const themeToggle = document.querySelector("#themeToggle");
+
+const storedTheme = localStorage.getItem("ddc-theme");
+if (storedTheme) document.documentElement.dataset.theme = storedTheme;
+themeToggle.addEventListener("click", () => {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem("ddc-theme", next);
+});
 
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {

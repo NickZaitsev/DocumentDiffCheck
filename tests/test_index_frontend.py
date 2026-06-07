@@ -23,7 +23,8 @@ def test_top_navigation_links_to_single_document_review() -> None:
     styles = (ROOT / "frontend" / "styles.css").read_text(encoding="utf-8")
 
     assert '<a href="/review.html">Ревью документа</a>' in index
-    assert 'id="primaryNav"' in index
+    assert 'id="primaryNav" class="topbar-menu"' in index
+    assert 'class="icon-btn theme-toggle"' in index
     assert 'data-nav-toggle' in index
     assert '<script src="/nav.js"></script>' in index
     assert '<form id="reviewForm"' in review
@@ -31,4 +32,5 @@ def test_top_navigation_links_to_single_document_review() -> None:
     assert 'fetch("/api/reviews"' in review_js
     assert 'Ревью документа' in review_report
     assert 'Summary' not in review_report
+    assert ".topbar-menu" in styles
     assert ".nav-toggle" in styles
