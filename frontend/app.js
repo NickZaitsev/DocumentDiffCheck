@@ -108,15 +108,6 @@ document.querySelectorAll("[data-picker]").forEach((input) => {
   });
 });
 
-/* ---------- Compare mode (files / id) ---------- */
-document.querySelectorAll(".seg-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const mode = btn.dataset.mode;
-    document.querySelectorAll(".seg-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
-    document.querySelectorAll(".mode-pane").forEach((p) => (p.hidden = p.dataset.mode !== mode));
-  });
-});
-
 /* ---------- Documents collapse (open on desktop, closed on mobile) ---------- */
 const docsMq = window.matchMedia("(max-width: 900px)");
 const syncDocsOpen = () => {
@@ -178,34 +169,6 @@ uploadForm.addEventListener("submit", async (event) => {
     uploadForm.querySelector('button[type="submit"]'),
   );
   await loadDocuments();
-});
-
-const idForm = document.querySelector("#idCompareForm");
-const oldDocSelect = document.querySelector("#oldDocSelect");
-const newDocSelect = document.querySelector("#newDocSelect");
-const storedEmpty = document.querySelector("#storedEmpty");
-
-idForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const oldDocumentId = oldDocSelect.value;
-  const newDocumentId = newDocSelect.value;
-  if (!oldDocumentId || !newDocumentId) {
-    toast("Выберите оба документа.", "err");
-    return;
-  }
-  if (oldDocumentId === newDocumentId) {
-    toast("Выберите два разных документа.", "err");
-    return;
-  }
-  await runComparison(
-    () =>
-      fetch("/api/comparisons", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ old_document_id: oldDocumentId, new_document_id: newDocumentId }),
-      }),
-    idForm.querySelector('button[type="submit"]'),
-  );
 });
 
 const refreshBtn = document.querySelector("#refreshDocuments");
@@ -336,37 +299,12 @@ function withDisplayLabels(documents) {
 }
 
 function populateSelects(documents) {
-  storedEmpty.hidden = documents.length > 0;
-  const storedBtn = idForm.querySelector('button[type="submit"]');
-  storedBtn.disabled = !documents.length;
   storedDocumentsList.innerHTML = documents
     .map(
       (doc) =>
         `<option value="${escapeHtml(doc.label)}">${escapeHtml(doc.document_id)} · ${formatDate(doc.created_at)}</option>`,
     )
     .join("");
-
-  const build = (select, defaultIndex) => {
-    const previous = select.value;
-    if (!documents.length) {
-      select.innerHTML = `<option value="">Нет документов</option>`;
-      return;
-    }
-    select.innerHTML = documents
-      .map(
-        (doc) =>
-          `<option value="${escapeHtml(doc.document_id)}">${escapeHtml(doc.label)} · ${formatDate(doc.created_at)} · ${formatBytes(doc.size_bytes)}</option>`,
-      )
-      .join("");
-    if (previous && documents.some((d) => d.document_id === previous)) {
-      select.value = previous;
-    } else {
-      select.value = documents[Math.min(defaultIndex, documents.length - 1)].document_id;
-    }
-  };
-
-  build(oldDocSelect, 1);
-  build(newDocSelect, 0);
 }
 
 async function loadReports() {

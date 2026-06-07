@@ -53,13 +53,10 @@
         <div class="card compare-card">
           <div class="card-head">
             <h2>Сравнить документы</h2>
-            <div class="seg" role="tablist" aria-label="Способ сравнения">
-              <button class="seg-btn is-active" type="button" data-mode="files" role="tab">Загрузить файлы</button>
-              <button class="seg-btn" type="button" data-mode="stored" role="tab">Из загруженных</button>
-            </div>
+            <span class="card-hint">файл · поиск · перетаскивание</span>
           </div>
 
-          <form id="uploadCompareForm" class="mode-pane" data-mode="files">
+          <form id="uploadCompareForm" class="mode-pane">
             <div class="dropzones">
               <label class="dropzone" data-for="oldFile">
                 <input id="oldFile" name="old_file" type="file" accept=".docx" />
@@ -126,28 +123,6 @@
             </button>
           </form>
 
-          <form id="idCompareForm" class="mode-pane" data-mode="stored" hidden>
-            <div class="id-fields">
-              <label class="field">
-                <span class="field-tag old">Старая версия</span>
-                <select id="oldDocSelect" class="doc-select"></select>
-              </label>
-              <span class="dz-arrow stored-arrow" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-              </span>
-              <label class="field">
-                <span class="field-tag new">Новая версия</span>
-                <select id="newDocSelect" class="doc-select"></select>
-              </label>
-            </div>
-            <p id="storedEmpty" class="mode-hint" hidden>
-              Пока нет загруженных документов — сначала загрузите файлы во вкладке «Загрузить файлы».
-            </p>
-            <button class="btn btn-primary" type="submit">
-              <span class="btn-label">Сравнить</span>
-              <span class="spinner" hidden></span>
-            </button>
-          </form>
         </div>
 
         <details id="docsCard" class="card docs-card" open>
