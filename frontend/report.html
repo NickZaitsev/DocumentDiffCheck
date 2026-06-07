@@ -25,7 +25,6 @@
           <a href="/#reportsHistory">История</a>
           <a href="/#docsCard">Документы</a>
         </nav>
-        <button id="shareReport" class="btn-mini" type="button">Поделиться</button>
       </div>
     </header>
 
@@ -37,9 +36,12 @@
 
       <section id="reportView" class="results" hidden>
         <div class="results-head">
-          <div>
-            <h1 id="reportTitle">Отчет сравнения</h1>
-            <p id="reportDate" class="report-date"></p>
+          <div class="report-title-row">
+            <div>
+              <h1 id="reportTitle">Отчет сравнения</h1>
+              <p id="reportDate" class="report-date"></p>
+            </div>
+            <button id="shareReport" class="btn-mini" type="button">Поделиться</button>
           </div>
           <div id="resultsMeta" class="results-meta"></div>
           <div id="stats" class="stats"></div>

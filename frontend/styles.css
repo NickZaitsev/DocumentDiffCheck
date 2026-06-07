@@ -760,6 +760,13 @@ input::placeholder { color: var(--muted); opacity: 0.6; }
   margin-bottom: 22px;
 }
 
+.report-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .results-meta {
   display: flex;
   flex-wrap: wrap;
@@ -1262,6 +1269,10 @@ input::placeholder { color: var(--muted); opacity: 0.6; }
     overflow-x: auto;
   }
   .card-head { flex-wrap: wrap; gap: 10px; }
+  .report-title-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
   .tab { font-size: 13px; }
   .document-item,
   .report-item {
