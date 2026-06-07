@@ -115,8 +115,15 @@ def test_review_upload_returns_single_document_summary_and_risks(
     payload = response.json()
     assert payload["document"]["filename"] == sample_path.name
     assert payload["blocks_count"] > 0
+    assert payload["review_id"]
+    assert payload["review_url"] == f"/review-report.html?id={payload['review_id']}"
     assert payload["summary"]["plain_language_summary"]
     assert "risk_assessment" in payload
+
+    reviews_response = client.get("/api/reviews")
+    assert reviews_response.status_code == 200
+    reviews = reviews_response.json()
+    assert reviews[0]["review_id"] == payload["review_id"]
 
 
 def test_review_existing_document_by_id(
@@ -148,7 +155,13 @@ def test_review_existing_document_by_id(
     assert response.status_code == 200
     payload = response.json()
     assert payload["document"]["document_id"] == document_id
+    assert payload["review_id"]
+    assert payload["review_url"] == f"/review-report.html?id={payload['review_id']}"
     assert payload["summary"]["provider"] == "fallback"
+
+    review_response = client.get(f"/api/reviews/{payload['review_id']}")
+    assert review_response.status_code == 200
+    assert review_response.json()["document"]["document_id"] == document_id
 
 
 def test_document_reports_returns_only_related_comparisons(

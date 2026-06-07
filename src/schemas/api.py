@@ -148,10 +148,43 @@ class CompareResponse(BaseModel):
 
 
 class DocumentReviewResponse(BaseModel):
+    review_id: str | None = None
+    review_url: str | None = None
     document: DocumentOut
     blocks_count: int
     summary: LegalSummary
     risk_assessment: RiskAssessment
+
+
+class DocumentReviewOut(BaseModel):
+    review_id: str
+    review_url: str
+    created_at: datetime
+    document: DocumentOut
+    blocks_count: int
+    summary: LegalSummary
+    risk_assessment: RiskAssessment
+
+    def to_response(self) -> DocumentReviewResponse:
+        return DocumentReviewResponse(
+            review_id=self.review_id,
+            review_url=self.review_url,
+            document=self.document,
+            blocks_count=self.blocks_count,
+            summary=self.summary,
+            risk_assessment=self.risk_assessment,
+        )
+
+
+class DocumentReviewSummaryOut(BaseModel):
+    review_id: str
+    review_url: str
+    created_at: datetime
+    document_id: str
+    filename: str
+    blocks_count: int
+    risk_count: int
+    risk_level: str
 
 
 class ComparisonReportOut(BaseModel):

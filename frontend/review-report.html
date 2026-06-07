@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>История · Docreview</title>
+    <title>Ревью документа · Docreview</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -16,7 +16,9 @@
     <header class="topbar">
       <div class="topbar-inner">
         <a class="brand report-brand" href="/">
-          <div class="brand-text"><strong>Docreview</strong></div>
+          <div class="brand-text">
+            <strong>Docreview</strong>
+          </div>
         </a>
         <nav id="primaryNav" class="topnav" aria-label="Основная навигация">
           <a href="/">Сравнить документы</a>
@@ -44,44 +46,40 @@
     </header>
 
     <main class="app">
-      <section class="hero page-hero">
-        <h1>История</h1>
-        <p>Здесь собраны сравнения и ревью документов. Поиск работает по названию, ID и типу записи.</p>
+      <section id="reviewStatus" class="loading-card">
+        <span class="spinner spinner-lg"></span>
+        <p>Загружаю ревью…</p>
       </section>
 
-      <section class="card history-card">
-        <div class="card-head">
-          <h2>История документов</h2>
-          <button id="refreshReports" class="link-btn" type="button">Обновить</button>
-        </div>
-        <div class="history-toolbar">
-          <div class="history-search">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="11" cy="11" r="8"></circle>
-              <path d="M21 21l-4.35-4.35"></path>
-            </svg>
-            <input
-              id="historySearch"
-              type="search"
-              autocomplete="off"
-              placeholder="Поиск по истории"
-              aria-label="Поиск по истории"
-            />
+      <section id="reviewView" class="results" hidden>
+        <div class="results-head">
+          <div class="report-title-row">
+            <div>
+              <h1 id="reviewTitle">Ревью документа</h1>
+              <p id="reviewDate" class="report-date"></p>
+            </div>
+            <button id="shareReview" class="btn-mini" type="button">Поделиться</button>
           </div>
-          <div class="history-filters" role="tablist" aria-label="Фильтр истории">
-            <button class="history-filter is-active" type="button" data-filter="all">Все <span id="historyCountAll" class="tab-count" hidden></span></button>
-            <button class="history-filter" type="button" data-filter="reports">Сравнения <span id="historyCountReports" class="tab-count" hidden></span></button>
-            <button class="history-filter" type="button" data-filter="reviews">Ревью <span id="historyCountReviews" class="tab-count" hidden></span></button>
-          </div>
+          <div id="reviewMeta" class="results-meta"></div>
+          <div id="reviewStats" class="stats"></div>
         </div>
-        <div id="reports" class="reports-list empty">
-          <p class="empty-note">Пока истории нет.</p>
+
+        <nav class="tabs" role="tablist">
+          <button class="tab is-active" type="button" data-tab="review">Ревью</button>
+          <button class="tab" type="button" data-tab="risks">
+            Риски <span id="riskCount" class="tab-count" hidden></span>
+          </button>
+        </nav>
+
+        <div class="tab-panels">
+          <div id="panel-review" class="tab-panel is-active" data-panel="review"></div>
+          <div id="panel-risks" class="tab-panel" data-panel="risks"></div>
         </div>
       </section>
     </main>
 
     <div id="toasts" class="toasts" aria-live="polite"></div>
     <script src="/nav.js"></script>
-    <script src="/history.js"></script>
+    <script src="/review-report.js"></script>
   </body>
 </html>

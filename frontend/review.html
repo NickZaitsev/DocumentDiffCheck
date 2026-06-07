@@ -18,12 +18,19 @@
         <a class="brand report-brand" href="/">
           <div class="brand-text"><strong>Docreview</strong></div>
         </a>
-        <nav class="topnav" aria-label="Основная навигация">
+        <nav id="primaryNav" class="topnav" aria-label="Основная навигация">
           <a href="/">Сравнить документы</a>
           <a href="/review.html">Ревью документа</a>
           <a href="/history.html">История</a>
           <a href="/documents.html">Документы</a>
         </nav>
+        <button class="icon-btn nav-toggle" type="button" aria-label="Открыть меню" aria-expanded="false" aria-controls="primaryNav" data-nav-toggle>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 6h16" />
+            <path d="M4 12h16" />
+            <path d="M4 18h16" />
+          </svg>
+        </button>
         <button id="themeToggle" class="icon-btn" type="button" title="Сменить тему" aria-label="Сменить тему">
           <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="4" />
@@ -97,35 +104,12 @@
 
       <section id="loading" class="loading-card" hidden>
         <span class="spinner spinner-lg"></span>
-        <p>Анализирую документ…</p>
-      </section>
-
-      <section id="reviewResults" class="results" hidden>
-        <div class="results-head">
-          <div class="report-title-row">
-            <div>
-              <h1 id="reviewTitle">Ревью документа</h1>
-              <p id="reviewMeta" class="report-date"></p>
-            </div>
-          </div>
-          <div id="reviewStats" class="stats"></div>
-        </div>
-
-        <nav class="tabs" role="tablist">
-          <button class="tab is-active" type="button" data-tab="summary">Summary</button>
-          <button class="tab" type="button" data-tab="risks">
-            Финансовые риски <span id="riskCount" class="tab-count" hidden></span>
-          </button>
-        </nav>
-
-        <div class="tab-panels">
-          <div id="panel-summary" class="tab-panel is-active" data-panel="summary"></div>
-          <div id="panel-risks" class="tab-panel" data-panel="risks"></div>
-        </div>
+        <p>Готовлю отдельное окно с ревью…</p>
       </section>
     </main>
 
     <div id="toasts" class="toasts" aria-live="polite"></div>
+    <script src="/nav.js"></script>
     <script src="/review.js"></script>
   </body>
 </html>

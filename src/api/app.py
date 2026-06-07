@@ -28,10 +28,12 @@ from src.domain.exceptions import (
     DocumentValidationError,
     DomainError,
     ReportNotFoundError,
+    ReviewNotFoundError,
 )
 from src.infrastructure.docx_parser import DocxDocumentParser
 from src.infrastructure.insights import FallbackInsightProvider, ResilientInsightProvider
 from src.infrastructure.reports import LocalComparisonReportRepository
+from src.infrastructure.reviews import LocalDocumentReviewRepository
 from src.infrastructure.storage import LocalDocumentRepository
 from src.integrations.gemini_provider import GeminiInsightProvider
 from src.integrations.openrouter_provider import OpenRouterInsightProvider
@@ -40,7 +42,9 @@ from src.schemas.api import (
     CompareResponse,
     ComparisonReportOut,
     ComparisonReportSummaryOut,
+    DocumentReviewOut,
     DocumentReviewResponse,
+    DocumentReviewSummaryOut,
     DocumentOut,
     ReviewByIdRequest,
 )
@@ -66,6 +70,7 @@ def create_app() -> FastAPI:
 
     repository = LocalDocumentRepository()
     report_repository = LocalComparisonReportRepository()
+    review_repository = LocalDocumentReviewRepository()
     parser = DocxDocumentParser()
     comparison_service = DocumentComparisonService()
     insight_provider = ResilientInsightProvider(
@@ -120,6 +125,14 @@ def create_app() -> FastAPI:
         repository.get(document_id)
         return list(report_repository.list_by_document(document_id))
 
+    @app.get(
+        "/api/documents/{document_id}/reviews",
+        response_model=list[DocumentReviewSummaryOut],
+    )
+    def list_document_reviews(document_id: str) -> list[DocumentReviewSummaryOut]:
+        repository.get(document_id)
+        return list(review_repository.list_by_document(document_id))
+
     @app.post("/api/comparisons", response_model=CompareResponse)
     def compare_by_id(payload: CompareByIdRequest) -> CompareResponse:
         result = compare_use_case.execute_by_id(
@@ -148,7 +161,7 @@ def create_app() -> FastAPI:
     @app.post("/api/reviews", response_model=DocumentReviewResponse)
     def review_by_id(payload: ReviewByIdRequest) -> DocumentReviewResponse:
         result = review_use_case.execute_by_id(document_id=payload.document_id)
-        return result.to_response()
+        return review_repository.save(result.to_response()).to_response()
 
     @app.post("/api/reviews/upload", response_model=DocumentReviewResponse)
     async def review_upload(file: UploadFile = File(...)) -> DocumentReviewResponse:
@@ -158,7 +171,15 @@ def create_app() -> FastAPI:
             content_type=file.content_type or "application/octet-stream",
             content=content,
         )
-        return result.to_response()
+        return review_repository.save(result.to_response()).to_response()
+
+    @app.get("/api/reviews", response_model=list[DocumentReviewSummaryOut])
+    def list_reviews() -> list[DocumentReviewSummaryOut]:
+        return list(review_repository.list())
+
+    @app.get("/api/reviews/{review_id}", response_model=DocumentReviewOut)
+    def get_review(review_id: str) -> DocumentReviewOut:
+        return review_repository.get(review_id)
 
     @app.get("/api/reports", response_model=list[ComparisonReportSummaryOut])
     def list_reports() -> list[ComparisonReportSummaryOut]:
@@ -215,6 +236,8 @@ def _status_for_domain_error(exc: DomainError) -> int:
     if isinstance(exc, DocumentNotFoundError):
         return 404
     if isinstance(exc, ReportNotFoundError):
+        return 404
+    if isinstance(exc, ReviewNotFoundError):
         return 404
     if isinstance(exc, (DocumentParsingError, ComparisonError)):
         return 422

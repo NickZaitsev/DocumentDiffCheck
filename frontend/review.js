@@ -150,9 +150,13 @@ async function runReview(requestFactory, button) {
     if (!response.ok) {
       throw new Error(payload.message || payload.error || "Request failed");
     }
-    renderReview(payload);
-    toast("Ревью готово.", "ok");
-    reviewResults.scrollIntoView({ behavior: "smooth", block: "start" });
+    const reviewUrl =
+      payload.review_url || (payload.review_id ? `/review-report.html?id=${encodeURIComponent(payload.review_id)}` : "");
+    if (!reviewUrl) {
+      throw new Error("Сервер не вернул ссылку на отчет ревью.");
+    }
+    toast("Ревью готово. Открываю отчет.", "ok");
+    window.location.assign(reviewUrl);
   } catch (error) {
     toast(error.message, "err");
   } finally {

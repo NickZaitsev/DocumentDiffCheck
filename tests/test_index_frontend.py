@@ -19,8 +19,16 @@ def test_top_navigation_links_to_single_document_review() -> None:
     index = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
     review = (ROOT / "frontend" / "review.html").read_text(encoding="utf-8")
     review_js = (ROOT / "frontend" / "review.js").read_text(encoding="utf-8")
+    review_report = (ROOT / "frontend" / "review-report.html").read_text(encoding="utf-8")
+    styles = (ROOT / "frontend" / "styles.css").read_text(encoding="utf-8")
 
     assert '<a href="/review.html">Ревью документа</a>' in index
+    assert 'id="primaryNav"' in index
+    assert 'data-nav-toggle' in index
+    assert '<script src="/nav.js"></script>' in index
     assert '<form id="reviewForm"' in review
     assert 'fetch("/api/reviews/upload"' in review_js
     assert 'fetch("/api/reviews"' in review_js
+    assert 'Ревью документа' in review_report
+    assert 'Summary' not in review_report
+    assert ".nav-toggle" in styles
