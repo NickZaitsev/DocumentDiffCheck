@@ -233,6 +233,10 @@ h1, h2, h3, p {
   font-size: 15px;
 }
 
+.page-hero {
+  margin-bottom: 20px;
+}
+
 .report-date {
   margin-top: 6px;
   color: var(--muted);
@@ -586,6 +590,11 @@ input::placeholder { color: var(--muted); opacity: 0.6; }
 .document-item[draggable="true"] { cursor: grab; }
 .document-item[draggable="true"]:active { cursor: grabbing; }
 
+.document-item.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 .doc-icon {
   display: grid;
   place-items: center;
@@ -659,6 +668,20 @@ input::placeholder { color: var(--muted); opacity: 0.6; }
 
 .history-card {
   margin-top: 18px;
+}
+
+.documents-page-card,
+.history-card {
+  margin-top: 0;
+}
+
+.page-documents {
+  max-height: none;
+  padding: 0;
+}
+
+.documents-page-card .documents.empty {
+  min-height: 160px;
 }
 
 .reports-list {
@@ -783,10 +806,12 @@ input::placeholder { color: var(--muted); opacity: 0.6; }
   border-radius: 999px;
   font-weight: 600;
   font-size: 13px;
+  text-decoration: none;
 }
 
 .file-chip.old { color: var(--removed); background: var(--removed-bg); }
 .file-chip.new { color: var(--added); background: var(--added-bg); }
+.file-chip:hover { filter: brightness(0.96); }
 
 .file-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 

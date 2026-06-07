@@ -61,9 +61,13 @@ function renderReport(report) {
 
 function renderMeta(comparison) {
   resultsMeta.innerHTML = `
-    <span class="file-chip old"><span class="dot"></span>${escapeHtml(comparison.old_filename)}</span>
+    <a class="file-chip old" href="/documents.html?id=${encodeURIComponent(comparison.old_document_id)}">
+      <span class="dot"></span>${escapeHtml(comparison.old_filename)}
+    </a>
     <span class="meta-arrow">→</span>
-    <span class="file-chip new"><span class="dot"></span>${escapeHtml(comparison.new_filename)}</span>
+    <a class="file-chip new" href="/documents.html?id=${encodeURIComponent(comparison.new_document_id)}">
+      <span class="dot"></span>${escapeHtml(comparison.new_filename)}
+    </a>
   `;
 }
 

@@ -11,8 +11,6 @@ const changeCount = document.querySelector("#changeCount");
 const docsCount = document.querySelector("#docsCount");
 const docsCard = document.querySelector("#docsCard");
 const toasts = document.querySelector("#toasts");
-const reportsBox = document.querySelector("#reports");
-const refreshReportsBtn = document.querySelector("#refreshReports");
 const storedDocumentsList = document.querySelector("#storedDocumentsList");
 
 let allDocuments = [];
@@ -170,11 +168,6 @@ refreshBtn.addEventListener("keydown", (e) => {
   if (e.key === "Enter" || e.key === " ") refresh(e);
 });
 
-refreshReportsBtn.addEventListener("click", () => {
-  loadReports();
-  toast("История сравнений обновлена.", "info");
-});
-
 /* ---------- Comparison flow ---------- */
 async function runComparison(requestFactory, button) {
   loading.hidden = false;
@@ -297,48 +290,6 @@ function populateSelects(documents) {
         `<option value="${escapeHtml(doc.label)}">${escapeHtml(documentCode(doc.document_id))} · ${formatDate(doc.created_at)}</option>`,
     )
     .join("");
-}
-
-async function loadReports() {
-  try {
-    const response = await fetch("/api/reports");
-    const reports = await response.json();
-    renderReports(reports);
-  } catch {
-    reportsBox.className = "reports-list empty";
-    reportsBox.innerHTML = `<p class="empty-note">Не удалось загрузить историю сравнений.</p>`;
-  }
-}
-
-function renderReports(reports) {
-  if (!reports.length) {
-    reportsBox.className = "reports-list empty";
-    reportsBox.innerHTML = `<p class="empty-note">Пока отчетов нет. После сравнения они появятся здесь.</p>`;
-    return;
-  }
-  reportsBox.className = "reports-list";
-  reportsBox.innerHTML = reports
-    .map(
-      (report) => `
-        <article class="report-item">
-          <div class="report-main">
-            <strong>${escapeHtml(report.old_filename)} → ${escapeHtml(report.new_filename)}</strong>
-            <span>${formatDate(report.created_at)} · ${report.modified} изменено · ${report.risk_count} рисков</span>
-          </div>
-          <div class="report-actions">
-            <a class="btn-mini" href="${escapeHtml(report.report_url)}">Открыть</a>
-            <button class="btn-mini" type="button" data-share-url="${escapeHtml(report.report_url)}">Поделиться</button>
-          </div>
-        </article>
-      `,
-    )
-    .join("");
-  reportsBox.querySelectorAll("[data-share-url]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      await navigator.clipboard.writeText(new URL(button.dataset.shareUrl, window.location.origin).toString());
-      toast("Ссылка на отчет скопирована.", "ok");
-    });
-  });
 }
 
 function sortDocumentsNewestFirst(documents) {
@@ -600,4 +551,3 @@ function escapeHtml(value) {
 }
 
 loadDocuments();
-loadReports();
