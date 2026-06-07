@@ -38,7 +38,7 @@ class UploadDocumentUseCase:
         content: bytes,
     ) -> StoredDocument:
         self._validate_upload(filename=filename, content=content)
-        return self._repository.    (filename, content_type, content)
+        return self._repository.save(filename, content_type, content)
 
     def _validate_upload(self, *, filename: str, content: bytes) -> None:
         if not filename.strip():
