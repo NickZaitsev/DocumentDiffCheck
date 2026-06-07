@@ -17,6 +17,8 @@ from src.domain.exceptions import AIProcessingError
 from src.domain.ports import InsightProvider
 from src.schemas.insights import ChangeItem, ChangeReport
 
+# Contingent / asymmetric exposures only. The agreed price, quantity and a
+# normal payment schedule are NOT risks, so cost/price words are excluded here.
 _RISK_KEYWORDS = (
     "штраф",
     "пеня",
@@ -25,32 +27,18 @@ _RISK_KEYWORDS = (
     "ответственност",
     "убытк",
     "просроч",
-    "оплат",
-    "предоплат",
-    "аванс",
-    "возврат",
     "удержан",
-    "процент",
-    # cost / price terms — so spec/price changes are treated as financial too
-    "стоимост",
-    "цена",
-    "цены",
-    "цену",
-    "сумм",
-    "тариф",
-    "расцен",
-    "ндс",
-    "налог",
+    "невозврат",
     "индексац",
+    "пропорционально уменьш",
+    "в одностороннем порядке",
     "liquidated damages",
     "penalty",
     "fine",
     "late payment",
     "late delivery",
     "liability",
-    "price",
-    "cost",
-    "amount",
+    "default",
 )
 _MONEY_OR_PERCENT_RE = re.compile(
     r"(\d+(?:[,.]\d+)?\s?%|\d[\d\s.,]*(?:руб\.?|₽|rur|rub|usd|eur))",
@@ -125,16 +113,17 @@ class FallbackInsightProvider:
 
     def analyze_document(self, document: ParsedDocument) -> ChangeReport:
         blocks = [block for block in document.blocks if block.text.strip()]
-        financial = [block for block in blocks if self._is_financial(block.text)]
-        # Show every money-relevant clause plus a few leading blocks for context.
-        selected = self._dedupe_blocks([*blocks[:6], *financial])
+        risk_blocks = [block for block in blocks if self._is_risk(block.text)]
+        # Risk audit: focus on contingent risks; fall back to leading blocks only
+        # when the contract has no detectable risk clauses.
+        selected = self._dedupe_blocks(risk_blocks[:20]) or blocks[:5]
 
         items = [self._block_item(block) for block in selected]
         return ChangeReport(
             summary=(
                 f"Документ «{document.filename}» разобран на {len(blocks)} "
-                "текстовых блоков. Ниже — положения, требующие внимания юриста, "
-                "и денежные условия."
+                f"блоков; найдено потенциальных финансовых рисков: "
+                f"{len(risk_blocks)}."
             ),
             overall_risk_level=self._overall_level(items),
             changes=items,
@@ -147,28 +136,22 @@ class FallbackInsightProvider:
         )
 
     def _change_item(self, change: DocumentChange) -> ChangeItem:
-        source_text = self._source_text(change)
-        terms = self._detected_terms(source_text)
-        money_terms = _MONEY_OR_PERCENT_RE.findall(source_text)
-        financial = bool(terms or money_terms)
-        return ChangeItem(
-            description=self._describe_change(change),
-            source_change_ids=[change.change_id],
-            financial_risk=financial,
-            risk_type=self._risk_type(terms) if financial else None,
-            estimated_impact=self._estimated_impact(money_terms) if financial else None,
-        )
+        return self._risk_item(self._describe_change(change), self._source_text(change), change.change_id)
 
     def _block_item(self, block: DocumentBlock) -> ChangeItem:
-        terms = self._detected_terms(block.text)
-        money_terms = _MONEY_OR_PERCENT_RE.findall(block.text)
-        financial = bool(terms or money_terms)
+        description = _trim(block.text, limit=400) or block.text
+        return self._risk_item(description, block.text, block.block_id)
+
+    def _risk_item(self, description: str, source_text: str, source_id: str) -> ChangeItem:
+        terms = self._detected_terms(source_text)
+        financial = bool(terms)
+        money_terms = _MONEY_OR_PERCENT_RE.findall(source_text) if financial else []
         return ChangeItem(
-            description=_trim(block.text, limit=400) or block.text,
-            source_change_ids=[block.block_id],
+            description=description,
+            source_change_ids=[source_id],
             financial_risk=financial,
             risk_type=self._risk_type(terms) if financial else None,
-            estimated_impact=self._estimated_impact(money_terms) if financial else None,
+            estimated_impact=self._estimated_impact(money_terms) if money_terms else None,
         )
 
     def _changed(self, comparison: ComparisonResult) -> list[DocumentChange]:
@@ -210,8 +193,8 @@ class FallbackInsightProvider:
             unique.append(block)
         return sorted(unique, key=lambda block: block.index)
 
-    def _is_financial(self, text: str) -> bool:
-        return bool(self._detected_terms(text) or _MONEY_OR_PERCENT_RE.search(text))
+    def _is_risk(self, text: str) -> bool:
+        return bool(self._detected_terms(text))
 
     def _source_text(self, change: DocumentChange) -> str:
         if change.new_block is not None:
@@ -221,20 +204,24 @@ class FallbackInsightProvider:
         return ""
 
     def _detected_terms(self, text: str) -> list[str]:
-        folded = text.casefold()
+        # Drop the "ООО" legal form so "ограниченной ответственностью" in party
+        # names is not mistaken for a liability clause.
+        folded = text.casefold().replace("ограниченной ответственностью", " ")
         return [keyword for keyword in _RISK_KEYWORDS if keyword in folded]
 
     def _risk_type(self, terms: list[str]) -> str:
         joined = " ".join(terms)
-        if "штраф" in joined or "пен" in joined or "неустойк" in joined:
+        if "штраф" in joined or "пен" in joined or "неустойк" in joined or "penalty" in joined or "fine" in joined:
             return "penalty"
-        if "стоимост" in joined or "цен" in joined or "сумм" in joined or "тариф" in joined:
-            return "cost"
-        if "оплат" in joined or "payment" in joined or "предоплат" in joined or "аванс" in joined:
-            return "payment"
-        if "ответствен" in joined or "liability" in joined:
+        if "ответствен" in joined or "liability" in joined or "убытк" in joined:
             return "liability"
-        return "financial"
+        if "индексац" in joined:
+            return "indexation"
+        if "односторонн" in joined or "уменьш" in joined:
+            return "price_change"
+        if "удержан" in joined or "невозврат" in joined:
+            return "withholding"
+        return "other"
 
     def _estimated_impact(self, money_terms: list[str]) -> str | None:
         if not money_terms:

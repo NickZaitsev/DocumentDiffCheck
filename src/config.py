@@ -73,7 +73,27 @@ OPENROUTER_TEMPERATURE = _env_float("OPENROUTER_TEMPERATURE", 0.1)
 OPENROUTER_SITE_URL = _env_str("OPENROUTER_SITE_URL", "http://127.0.0.1:8010")
 OPENROUTER_APP_NAME = _env_str("OPENROUTER_APP_NAME", "Document Diff Check")
 
-COMPARISON_ANALYSIS_PROMPT = """
+# A financial RISK is a contingent or asymmetric monetary exposure — something
+# that can cost a party money beyond the agreed price. The agreed price itself,
+# the quantity, and a normal payment schedule are NOT risks (they are terms).
+_RISK_DEFINITION = """
+A "financial_risk" is a CONTINGENT or asymmetric monetary exposure — something
+that can cost a party extra money beyond the agreed deal:
+- penalties, fines, неустойка, пеня, штраф, liquidated damages;
+- consequences of late delivery or late payment (просрочка);
+- liability, especially uncapped liability, damages (убытки);
+- price indexation / unilateral price change;
+- prepayment that can be lost / non-refundable, withholding (удержание),
+  forfeiture of a deposit or guarantee.
+The agreed contract price, the quantity, totals, taxes, and a normal payment
+schedule are NOT financial risks — they are ordinary commercial terms. Do not
+mark them as financial_risk (still list them as regular items when relevant).
+"risk_type" must be one of: penalty | liability | indexation | price_change |
+prepayment | withholding | other.
+"""
+
+COMPARISON_ANALYSIS_PROMPT = (
+    """
 You are a legal document review assistant. Analyze only the provided structured
 DOCX diff. Do not invent clauses that are not present in the diff.
 
@@ -84,48 +104,54 @@ Produce ONE unified list of changes ("changes"). For each change:
   lawyer (no headings, no separate "significance" field, no boilerplate);
 - "source_change_ids": the change_id values from the payload that this item
   covers (one or several). Use only ids that exist in the payload;
-- "financial_risk": true if the change affects money or liability — payment,
-  price/cost/amount/quantity, penalties, fines, late delivery/payment,
-  liability, prepayment, refund, indexation, taxes;
-- "risk_type": short tag when financial_risk is true (e.g. payment, penalty,
-  liability, cost), otherwise null;
+- "financial_risk": true ONLY for a genuine financial risk as defined below;
+- "risk_type": the tag from the list below when financial_risk is true, else null;
 - "estimated_impact": when financial_risk is true, the money effect as a value
-  or a short formula/explanation; null when it cannot be estimated. Do not
-  invent missing contract values.
-
+  or a short formula using amounts present in the document; null when it cannot
+  be estimated. Do not invent missing contract values.
+"""
+    + _RISK_DEFINITION
+    + """
 Also fill:
 - "summary": 1-2 sentences on what changed overall;
-- "overall_risk_level": "low" | "medium" | "high" based on the financial items;
+- "overall_risk_level": "low" | "medium" | "high" based on the financial risks;
 - "recommended_review_points": a few concrete things a lawyer should check.
 
 Comparison payload:
 {comparison_payload}
-""".strip()
+"""
+).strip()
 
-DOCUMENT_ANALYSIS_PROMPT = """
-You are a legal document review assistant. Analyze only the provided structured
-DOCX document blocks. Do not invent clauses that are not present in the document.
+DOCUMENT_ANALYSIS_PROMPT = (
+    """
+You are auditing ONE legal contract for financial risk. Analyze only the
+provided structured DOCX blocks. Do not invent clauses that are not present.
 
 Return JSON that matches the provided schema. Write in Russian.
 
-Produce ONE unified list of findings ("changes"). For each finding:
-- "description": one self-contained sentence about a clause worth a lawyer's
-  attention (no headings, no separate "significance" field);
+Produce ONE list ("changes") focused on financial risk. For each item:
+- "description": one self-contained sentence about a risky clause, for a lawyer
+  (no headings, no separate "significance" field);
 - "source_change_ids": the block_id values from the payload this item refers to.
   Use only ids that exist in the payload;
-- "financial_risk": true if the clause affects money or liability — payment,
-  price/cost/amount/quantity, penalties, fines, late delivery/payment,
-  liability, prepayment, refund, indexation, taxes;
-- "risk_type": short tag when financial_risk is true, otherwise null;
-- "estimated_impact": when financial_risk is true, the money effect as a value
-  or a short formula/explanation; null when it cannot be estimated. Do not
-  invent missing contract values.
+- "financial_risk": true ONLY for a genuine financial risk as defined below;
+- "risk_type": the tag from the list below when financial_risk is true, else null;
+- "estimated_impact": when financial_risk is true, quantify the exposure using
+  amounts present in the contract (e.g. the total price) when possible; null
+  otherwise. Do not invent missing contract values.
+"""
+    + _RISK_DEFINITION
+    + """
+Prioritise the financial risks. You may include a few key commercial terms
+(price, payment schedule) as context items with financial_risk=false, but the
+agreed price is context, not a risk.
 
 Also fill:
-- "summary": 1-2 sentences on the document's purpose and main obligations;
-- "overall_risk_level": "low" | "medium" | "high" based on the financial items;
+- "summary": 1-2 sentences on the contract's purpose and main obligations;
+- "overall_risk_level": "low" | "medium" | "high" based on the financial risks;
 - "recommended_review_points": a few concrete things a lawyer should check.
 
 Document payload:
 {document_payload}
-""".strip()
+"""
+).strip()

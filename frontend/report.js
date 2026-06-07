@@ -149,7 +149,7 @@ function renderFeed(report) {
         <span class="rb-text">${escapeHtml(report.summary)}</span>
         <span class="level-badge ${levelClass}"><span class="dot"></span>${escapeHtml(report.overall_risk_level || "low")}</span>
       </div>
-      ${riskCount ? `<p class="feed-sub">Денежных изменений: <b>${riskCount}</b> из ${changes.length}.</p>` : ""}
+      ${riskCount ? `<p class="feed-sub">Финансовых рисков: <b>${riskCount}</b> из ${changes.length} изменений.</p>` : ""}
       ${
         changes.length
           ? changes.map(renderFeedItem).join("")

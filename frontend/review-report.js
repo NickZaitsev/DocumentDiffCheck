@@ -97,11 +97,11 @@ function renderFeed(report) {
         <span class="rb-text">${escapeHtml(report.summary)}</span>
         <span class="level-badge ${levelCls}"><span class="dot"></span>${escapeHtml(report.overall_risk_level || "low")}</span>
       </div>
-      ${riskCount ? `<p class="feed-sub">Денежных условий: <b>${riskCount}</b> из ${changes.length}.</p>` : ""}
+      ${riskCount ? `<p class="feed-sub">Финансовых рисков: <b>${riskCount}</b>.</p>` : ""}
       ${
         changes.length
           ? changes.map(renderFeedItem).join("")
-          : `<p class="feed-sub">Существенных положений не выделено.</p>`
+          : `<p class="feed-sub">Финансовых рисков не выявлено.</p>`
       }
       ${
         (report.recommended_review_points || []).length
@@ -116,8 +116,6 @@ function renderFeed(report) {
 }
 
 function renderFeedItem(item) {
-  const ids = item.source_change_ids || [];
-  const source = ids.length ? `<span class="feed-source">${escapeHtml(ids.join(", "))}</span>` : "";
   const badge = item.financial_risk
     ? `<span class="fin-badge">₽ финансовый риск${item.risk_type ? ` · ${escapeHtml(item.risk_type)}` : ""}</span>`
     : "";
@@ -128,7 +126,6 @@ function renderFeedItem(item) {
         ${badge}
       </div>
       ${item.estimated_impact ? `<div class="impact">${escapeHtml(item.estimated_impact)}</div>` : ""}
-      ${source}
     </div>
   `;
 }
