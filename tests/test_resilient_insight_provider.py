@@ -4,51 +4,23 @@ from typing import Any
 
 from src.domain.exceptions import AIProcessingError
 from src.infrastructure.insights import FallbackInsightProvider, ResilientInsightProvider
-from src.schemas.insights import LegalSummary, RiskAssessment
+from src.schemas.insights import ChangeReport
 
 
 class FailingProvider:
-    def generate_summary(self, comparison: Any) -> LegalSummary:
+    def analyze_comparison(self, comparison: Any) -> ChangeReport:
         raise AIProcessingError("primary failed")
 
-    def assess_risks(self, comparison: Any) -> RiskAssessment:
-        raise AIProcessingError("primary failed")
-
-    def generate_document_summary(self, document: Any) -> LegalSummary:
-        raise AIProcessingError("primary failed")
-
-    def assess_document_risks(self, document: Any) -> RiskAssessment:
+    def analyze_document(self, document: Any) -> ChangeReport:
         raise AIProcessingError("primary failed")
 
 
 class SuccessfulProvider:
-    def generate_summary(self, comparison: Any) -> LegalSummary:
-        return LegalSummary(
-            plain_language_summary="ok",
-            legal_significance="ok",
-            provider="second",
-        )
+    def analyze_comparison(self, comparison: Any) -> ChangeReport:
+        return ChangeReport(summary="ok", provider="second")
 
-    def assess_risks(self, comparison: Any) -> RiskAssessment:
-        return RiskAssessment(
-            overall_risk_level="low",
-            review_recommendation="ok",
-            provider="second",
-        )
-
-    def generate_document_summary(self, document: Any) -> LegalSummary:
-        return LegalSummary(
-            plain_language_summary="ok",
-            legal_significance="ok",
-            provider="second",
-        )
-
-    def assess_document_risks(self, document: Any) -> RiskAssessment:
-        return RiskAssessment(
-            overall_risk_level="low",
-            review_recommendation="ok",
-            provider="second",
-        )
+    def analyze_document(self, document: Any) -> ChangeReport:
+        return ChangeReport(summary="ok", provider="second")
 
 
 def test_resilient_provider_tries_next_primary_before_fallback() -> None:
@@ -57,8 +29,5 @@ def test_resilient_provider_tries_next_primary_before_fallback() -> None:
         fallback=FallbackInsightProvider(),
     )
 
-    assert provider.generate_summary(None).provider == "second"
-    assert provider.assess_risks(None).provider == "second"
-    assert provider.generate_document_summary(None).provider == "second"
-    assert provider.assess_document_risks(None).provider == "second"
-
+    assert provider.analyze_comparison(None).provider == "second"
+    assert provider.analyze_document(None).provider == "second"

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Protocol
 
 from src.domain.entities import ComparisonResult, ParsedDocument, StoredDocument
-from src.schemas.insights import LegalSummary, RiskAssessment
+from src.schemas.insights import ChangeReport
 
 
 class DocumentParser(Protocol):
@@ -24,20 +24,13 @@ class DocumentRepository(Protocol):
 
 
 class InsightProvider(Protocol):
-    def generate_summary(self, comparison: ComparisonResult) -> LegalSummary:
-        """Generate lawyer-friendly structured summary for a comparison."""
+    def analyze_comparison(self, comparison: ComparisonResult) -> ChangeReport:
+        """Produce a unified change feed (with financial flags) for a diff."""
 
-    def assess_risks(self, comparison: ComparisonResult) -> RiskAssessment:
-        """Extract financial risks from changed clauses."""
-
-    def generate_document_summary(self, document: ParsedDocument) -> LegalSummary:
-        """Generate lawyer-friendly structured summary for one document."""
-
-    def assess_document_risks(self, document: ParsedDocument) -> RiskAssessment:
-        """Extract financial risk candidates from one document."""
+    def analyze_document(self, document: ParsedDocument) -> ChangeReport:
+        """Produce a unified findings feed (with financial flags) for one document."""
 
 
 class FileHasher(Protocol):
     def sha256(self, path: Path) -> str:
         """Return the SHA-256 hash of a local file."""
-

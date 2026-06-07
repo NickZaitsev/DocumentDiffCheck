@@ -1259,6 +1259,81 @@ input::placeholder { color: var(--muted); opacity: 0.6; }
   margin: 8px 0 2px;
 }
 
+/* ---------- Unified changes feed ---------- */
+.feed-sub {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.feed-item {
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  padding: 14px 16px;
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 8px;
+}
+
+.feed-item.is-financial {
+  border-color: var(--modified);
+  background: var(--modified-bg);
+}
+
+.feed-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.feed-desc {
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.fin-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  color: var(--modified);
+  background: var(--panel);
+  border: 1px solid var(--modified);
+}
+
+.proof-link {
+  align-self: flex-start;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.proof-link:hover { text-decoration: underline; }
+
+.feed-source {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: "JetBrains Mono", Consolas, monospace;
+}
+
+.diff-row.is-highlighted {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+  transition: outline-color 0.3s ease;
+}
+
 .key-change {
   border: 1px solid var(--line);
   border-radius: 13px;

@@ -5,8 +5,7 @@ const reviewDate = document.querySelector("#reviewDate");
 const reviewMeta = document.querySelector("#reviewMeta");
 const reviewStats = document.querySelector("#reviewStats");
 const reviewPanel = document.querySelector("#panel-review");
-const risksPanel = document.querySelector("#panel-risks");
-const riskCount = document.querySelector("#riskCount");
+const feedCount = document.querySelector("#feedCount");
 const shareReview = document.querySelector("#shareReview");
 const toasts = document.querySelector("#toasts");
 const themeToggle = document.querySelector("#themeToggle");
@@ -67,13 +66,14 @@ function renderReview(payload) {
     reviewChip(displayDocumentId(payload.document.document_id)),
     reviewChip(formatBytes(payload.document.size_bytes)),
   ].join("");
+  const report = payload.report;
+  const riskCount = (report.changes || []).filter((item) => item.financial_risk).length;
   reviewStats.innerHTML = [
     stat("Блоков", payload.blocks_count, "s-sim"),
-    stat("Рисков", payload.risk_assessment.risks.length, payload.risk_assessment.risks.length ? "s-modified" : "s-added"),
-    stat("Уровень", payload.risk_assessment.overall_risk_level.toUpperCase(), "s-sim"),
+    stat("Рисков", riskCount, riskCount ? "s-modified" : "s-added"),
+    stat("Уровень", String(report.overall_risk_level || "low").toUpperCase(), "s-sim"),
   ].join("");
-  renderReviewPanel(payload.summary);
-  renderRisks(payload.risk_assessment);
+  renderFeed(report);
 }
 
 function reviewChip(text) {
@@ -84,94 +84,51 @@ function stat(label, value, cls) {
   return `<div class="stat ${cls}"><b>${escapeHtml(String(value))}</b><span>${label}</span></div>`;
 }
 
-function renderReviewPanel(summary) {
+function renderFeed(report) {
+  const changes = report.changes || [];
+  const riskCount = changes.filter((item) => item.financial_risk).length;
+  feedCount.hidden = !changes.length;
+  feedCount.textContent = changes.length;
+
+  const levelCls = "lvl-" + String(report.overall_risk_level || "low").toLowerCase();
   reviewPanel.innerHTML = `
     <div class="stack">
-      <p class="lead">${escapeHtml(summary.plain_language_summary)}</p>
-      <div class="callout">
-        <h3>Юридическое значение</h3>
-        <p>${escapeHtml(summary.legal_significance)}</p>
+      <div class="risk-banner">
+        <span class="rb-text">${escapeHtml(report.summary)}</span>
+        <span class="level-badge ${levelCls}"><span class="dot"></span>${escapeHtml(report.overall_risk_level || "low")}</span>
       </div>
+      ${riskCount ? `<p class="feed-sub">Денежных условий: <b>${riskCount}</b> из ${changes.length}.</p>` : ""}
       ${
-        summary.key_changes.length
-          ? `<h3 class="section-title">Ключевые блоки</h3>${summary.key_changes.map(renderKeyChange).join("")}`
-          : ""
+        changes.length
+          ? changes.map(renderFeedItem).join("")
+          : `<p class="feed-sub">Существенных положений не выделено.</p>`
       }
       ${
-        summary.recommended_review_points.length
-          ? `<h3 class="section-title">Что проверить</h3><ul class="review-list">${summary.recommended_review_points
+        (report.recommended_review_points || []).length
+          ? `<h3 class="section-title">Что проверить</h3><ul class="review-list">${report.recommended_review_points
               .map((point) => `<li>${escapeHtml(point)}</li>`)
               .join("")}</ul>`
           : ""
       }
-      <span class="provider-tag">${escapeHtml(summary.provider)}${summary.model ? ` · ${escapeHtml(summary.model)}` : ""}</span>
+      <span class="provider-tag">${escapeHtml(report.provider)}${report.model ? ` · ${escapeHtml(report.model)}` : ""}</span>
     </div>
   `;
 }
 
-function renderKeyChange(change) {
+function renderFeedItem(item) {
+  const ids = item.source_change_ids || [];
+  const source = ids.length ? `<span class="feed-source">${escapeHtml(ids.join(", "))}</span>` : "";
+  const badge = item.financial_risk
+    ? `<span class="fin-badge">₽ финансовый риск${item.risk_type ? ` · ${escapeHtml(item.risk_type)}` : ""}</span>`
+    : "";
   return `
-    <div class="key-change">
-      <h3>${escapeHtml(change.title)}</h3>
-      <p class="kc-desc">${escapeHtml(change.description)}</p>
-      <p class="kc-sig">${escapeHtml(change.legal_significance)}</p>
-    </div>
-  `;
-}
-
-function renderRisks(assessment) {
-  const count = assessment.risks.length;
-  riskCount.hidden = !count;
-  riskCount.textContent = count;
-
-  if (!count) {
-    risksPanel.innerHTML = `
-      <div class="stack">
-        <div class="risk-banner">
-          <span class="rb-text">Финансовые риск-кандидаты не найдены.</span>
-          <span class="level-badge level-low"><span class="dot"></span>LOW</span>
-        </div>
-        <span class="provider-tag">${escapeHtml(assessment.provider)}</span>
+    <div class="feed-item${item.financial_risk ? " is-financial" : ""}">
+      <div class="feed-row">
+        <p class="feed-desc">${escapeHtml(item.description)}</p>
+        ${badge}
       </div>
-    `;
-    return;
-  }
-
-  const levelCls = "lvl-" + String(assessment.overall_risk_level).toLowerCase();
-  risksPanel.innerHTML = `
-    <div class="stack">
-      <div class="risk-banner">
-        <span class="rb-text">${escapeHtml(assessment.review_recommendation)}</span>
-        <span class="level-badge ${levelCls}"><span class="dot"></span>${escapeHtml(assessment.overall_risk_level)}</span>
-      </div>
-      ${assessment.risks.map(renderRisk).join("")}
-      <span class="provider-tag">${escapeHtml(assessment.provider)}${assessment.model ? ` · ${escapeHtml(assessment.model)}` : ""}</span>
-    </div>
-  `;
-}
-
-function renderRisk(risk) {
-  const confidence = Math.round(risk.confidence * 100);
-  return `
-    <div class="risk">
-      <div class="risk-head">
-        <div>
-          <h3>${escapeHtml(risk.title)}</h3>
-          <span class="risk-type">${escapeHtml(risk.risk_type)}</span>
-        </div>
-        <div class="confidence">
-          <span>${confidence}%</span>
-          <div class="conf-bar"><div class="conf-fill" style="width:${confidence}%"></div></div>
-        </div>
-      </div>
-      <p>${escapeHtml(risk.explanation)}</p>
-      ${risk.estimated_impact ? `<div class="impact">${escapeHtml(risk.estimated_impact)}</div>` : ""}
-      <div class="source-text">${escapeHtml(risk.source_text)}</div>
-      ${
-        risk.detected_terms && risk.detected_terms.length
-          ? `<div class="terms">${risk.detected_terms.map((term) => `<span class="term">${escapeHtml(term)}</span>`).join("")}</div>`
-          : ""
-      }
+      ${item.estimated_impact ? `<div class="impact">${escapeHtml(item.estimated_impact)}</div>` : ""}
+      ${source}
     </div>
   `;
 }

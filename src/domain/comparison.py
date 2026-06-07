@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from difflib import SequenceMatcher
 from uuid import uuid4
 
@@ -55,6 +56,13 @@ class DocumentComparisonService:
                 changes.extend(self._replace_changes(old_span, new_span))
             else:
                 raise ComparisonError(f"Unsupported diff opcode: {tag}")
+
+        # Stable, position-ordered ids ("c0", "c1", ...) so the LLM can echo
+        # them reliably and the UI can anchor proof links to diff rows.
+        changes = [
+            replace(change, change_id=f"c{index}")
+            for index, change in enumerate(changes)
+        ]
 
         stats = self._build_stats(changes)
         return ComparisonResult(

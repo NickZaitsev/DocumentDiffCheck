@@ -15,7 +15,7 @@ from src.domain.entities import (
     WordDiffSegment,
     WordDiffType,
 )
-from src.schemas.insights import LegalSummary, RiskAssessment
+from src.schemas.insights import ChangeReport
 
 
 class DocumentOut(BaseModel):
@@ -142,8 +142,7 @@ class CompareResponse(BaseModel):
     report_id: str | None = None
     report_url: str | None = None
     comparison: ComparisonOut
-    summary: LegalSummary
-    risk_assessment: RiskAssessment
+    report: ChangeReport
 
 
 class DocumentReviewResponse(BaseModel):
@@ -151,8 +150,7 @@ class DocumentReviewResponse(BaseModel):
     review_url: str | None = None
     document: DocumentOut
     blocks_count: int
-    summary: LegalSummary
-    risk_assessment: RiskAssessment
+    report: ChangeReport
 
 
 class DocumentReviewOut(BaseModel):
@@ -161,8 +159,7 @@ class DocumentReviewOut(BaseModel):
     created_at: datetime
     document: DocumentOut
     blocks_count: int
-    summary: LegalSummary
-    risk_assessment: RiskAssessment
+    report: ChangeReport
 
     def to_response(self) -> DocumentReviewResponse:
         return DocumentReviewResponse(
@@ -170,8 +167,7 @@ class DocumentReviewOut(BaseModel):
             review_url=self.review_url,
             document=self.document,
             blocks_count=self.blocks_count,
-            summary=self.summary,
-            risk_assessment=self.risk_assessment,
+            report=self.report,
         )
 
 
@@ -191,16 +187,14 @@ class ComparisonReportOut(BaseModel):
     report_url: str
     created_at: datetime
     comparison: ComparisonOut
-    summary: LegalSummary
-    risk_assessment: RiskAssessment
+    report: ChangeReport
 
     def to_response(self) -> CompareResponse:
         return CompareResponse(
             report_id=self.report_id,
             report_url=self.report_url,
             comparison=self.comparison,
-            summary=self.summary,
-            risk_assessment=self.risk_assessment,
+            report=self.report,
         )
 
 

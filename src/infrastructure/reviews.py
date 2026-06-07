@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from src import config
 from src.domain.exceptions import DocumentValidationError, ReviewNotFoundError
+
+logger = logging.getLogger(__name__)
 from src.schemas.api import (
     DocumentReviewOut,
     DocumentReviewResponse,
@@ -28,11 +31,12 @@ class ReviewRecord(BaseModel):
             created_at=self.created_at,
             document=self.response.document,
             blocks_count=self.response.blocks_count,
-            summary=self.response.summary,
-            risk_assessment=self.response.risk_assessment,
+            report=self.response.report,
         )
 
     def to_summary(self) -> DocumentReviewSummaryOut:
+        report = self.response.report
+        risk_count = sum(item.financial_risk for item in report.changes)
         return DocumentReviewSummaryOut(
             review_id=self.review_id,
             review_url=_review_url(self.review_id),
@@ -40,8 +44,8 @@ class ReviewRecord(BaseModel):
             document_id=self.response.document.document_id,
             filename=self.response.document.filename,
             blocks_count=self.response.blocks_count,
-            risk_count=len(self.response.risk_assessment.risks),
-            risk_level=self.response.risk_assessment.overall_risk_level,
+            risk_count=risk_count,
+            risk_level=report.overall_risk_level,
         )
 
 
@@ -101,8 +105,15 @@ class LocalDocumentReviewRepository:
         raw = json.loads(self._index_path.read_text(encoding="utf-8"))
         if not isinstance(raw, list):
             raise DocumentValidationError("Review index is malformed")
-        records = [ReviewRecord.model_validate(item) for item in raw]
-        return {record.review_id: record for record in records}
+        records: dict[str, ReviewRecord] = {}
+        for item in raw:
+            try:
+                record = ReviewRecord.model_validate(item)
+            except ValidationError:
+                logger.warning("Skipping review record with incompatible schema")
+                continue
+            records[record.review_id] = record
+        return records
 
     def _save_records(self, records: dict[str, ReviewRecord]) -> None:
         payload = [

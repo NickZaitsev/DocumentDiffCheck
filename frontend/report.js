@@ -5,9 +5,8 @@ const reportDate = document.querySelector("#reportDate");
 const resultsMeta = document.querySelector("#resultsMeta");
 const statsBox = document.querySelector("#stats");
 const summaryPanel = document.querySelector("#panel-summary");
-const risksPanel = document.querySelector("#panel-risks");
 const changesPanel = document.querySelector("#panel-changes");
-const riskCount = document.querySelector("#riskCount");
+const feedCount = document.querySelector("#feedCount");
 const changeCount = document.querySelector("#changeCount");
 const shareReport = document.querySelector("#shareReport");
 const toasts = document.querySelector("#toasts");
@@ -81,10 +80,35 @@ function renderReport(report) {
   reportDate.textContent = `Создан: ${formatDate(report.created_at)}`;
   renderMeta(comparison);
   renderStats(comparison.stats);
-  renderSummary(report.summary);
-  renderRisks(report.risk_assessment);
+  renderFeed(report.report);
   renderChanges(comparison.changes);
 }
+
+function activateTab(name) {
+  document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("is-active", tab.dataset.tab === name));
+  document.querySelectorAll(".tab-panel").forEach((panel) =>
+    panel.classList.toggle("is-active", panel.dataset.panel === name),
+  );
+}
+
+function gotoChange(changeId) {
+  activateTab("changes");
+  const row = document.getElementById(`change-${changeId}`);
+  if (!row) {
+    return;
+  }
+  row.scrollIntoView({ behavior: "smooth", block: "center" });
+  row.classList.add("is-highlighted");
+  setTimeout(() => row.classList.remove("is-highlighted"), 1800);
+}
+
+summaryPanel.addEventListener("click", (event) => {
+  const link = event.target.closest("[data-goto]");
+  if (!link) {
+    return;
+  }
+  gotoChange(link.dataset.goto);
+});
 
 function renderMeta(comparison) {
   resultsMeta.innerHTML = `
@@ -112,91 +136,53 @@ function stat(label, value, cls) {
   return `<div class="stat ${cls}"><b>${escapeHtml(String(value))}</b><span>${label}</span></div>`;
 }
 
-function renderSummary(summary) {
+function renderFeed(report) {
+  const changes = report.changes || [];
+  const riskCount = changes.filter((item) => item.financial_risk).length;
+  feedCount.hidden = !changes.length;
+  feedCount.textContent = changes.length;
+
+  const levelClass = `lvl-${String(report.overall_risk_level || "low").toLowerCase()}`;
   summaryPanel.innerHTML = `
     <div class="stack">
-      <p class="lead">${escapeHtml(summary.plain_language_summary)}</p>
-      <div class="callout">
-        <h3>Юридическое значение</h3>
-        <p>${escapeHtml(summary.legal_significance)}</p>
+      <div class="risk-banner">
+        <span class="rb-text">${escapeHtml(report.summary)}</span>
+        <span class="level-badge ${levelClass}"><span class="dot"></span>${escapeHtml(report.overall_risk_level || "low")}</span>
       </div>
+      ${riskCount ? `<p class="feed-sub">Денежных изменений: <b>${riskCount}</b> из ${changes.length}.</p>` : ""}
       ${
-        summary.key_changes.length
-          ? `<h3 class="section-title">Ключевые изменения</h3>${summary.key_changes.map(renderKeyChange).join("")}`
-          : ""
+        changes.length
+          ? changes.map(renderFeedItem).join("")
+          : `<p class="feed-sub">Существенных изменений не найдено.</p>`
       }
       ${
-        summary.recommended_review_points.length
-          ? `<h3 class="section-title">Что проверить</h3><ul class="review-list">${summary.recommended_review_points
+        (report.recommended_review_points || []).length
+          ? `<h3 class="section-title">Что проверить</h3><ul class="review-list">${report.recommended_review_points
               .map((point) => `<li>${escapeHtml(point)}</li>`)
               .join("")}</ul>`
           : ""
       }
-      <span class="provider-tag">${escapeHtml(summary.provider)}${summary.model ? ` · ${escapeHtml(summary.model)}` : ""}</span>
+      <span class="provider-tag">${escapeHtml(report.provider)}${report.model ? ` · ${escapeHtml(report.model)}` : ""}</span>
     </div>
   `;
 }
 
-function renderKeyChange(change) {
+function renderFeedItem(item) {
+  const ids = item.source_change_ids || [];
+  const proof = ids.length
+    ? `<button type="button" class="proof-link" data-goto="${escapeHtml(ids[0])}">Показать в сравнении →</button>`
+    : "";
+  const badge = item.financial_risk
+    ? `<span class="fin-badge">₽ финансовый риск${item.risk_type ? ` · ${escapeHtml(item.risk_type)}` : ""}</span>`
+    : "";
   return `
-    <div class="key-change">
-      <h3>${escapeHtml(change.title)}</h3>
-      <p class="kc-desc">${escapeHtml(change.description)}</p>
-      <p class="kc-sig">${escapeHtml(change.legal_significance)}</p>
-    </div>
-  `;
-}
-
-function renderRisks(assessment) {
-  const count = assessment.risks.length;
-  riskCount.hidden = !count;
-  riskCount.textContent = count;
-
-  if (!count) {
-    risksPanel.innerHTML = `
-      <div class="stack">
-        <div class="risk-banner">
-          <span class="rb-text">Финансовые риск-кандидаты не найдены.</span>
-          <span class="level-badge level-low"><span class="dot"></span>LOW</span>
-        </div>
-        <span class="provider-tag">${escapeHtml(assessment.provider)}</span>
+    <div class="feed-item${item.financial_risk ? " is-financial" : ""}">
+      <div class="feed-row">
+        <p class="feed-desc">${escapeHtml(item.description)}</p>
+        ${badge}
       </div>
-    `;
-    return;
-  }
-
-  const levelClass = `lvl-${assessment.overall_risk_level.toLowerCase()}`;
-  risksPanel.innerHTML = `
-    <div class="stack">
-      <div class="risk-banner">
-        <span class="rb-text">${escapeHtml(assessment.review_recommendation)}</span>
-        <span class="level-badge ${levelClass}"><span class="dot"></span>${escapeHtml(assessment.overall_risk_level)}</span>
-      </div>
-      ${assessment.risks.map(renderRisk).join("")}
-      <span class="provider-tag">${escapeHtml(assessment.provider)}${assessment.model ? ` · ${escapeHtml(assessment.model)}` : ""}</span>
-    </div>
-  `;
-}
-
-function renderRisk(risk) {
-  const pct = Math.round(risk.confidence * 100);
-  return `
-    <div class="risk">
-      <div class="risk-head">
-        <div>
-          <h3>${escapeHtml(risk.title)}</h3>
-          <span class="risk-type">${escapeHtml(risk.risk_type)}</span>
-        </div>
-        <div class="confidence"><span>${pct}%</span><div class="conf-bar"><div class="conf-fill" style="width:${pct}%"></div></div></div>
-      </div>
-      <p>${escapeHtml(risk.explanation)}</p>
-      ${risk.estimated_impact ? `<div class="impact">${escapeHtml(risk.estimated_impact)}</div>` : ""}
-      <div class="source-text">${escapeHtml(risk.source_text)}</div>
-      ${
-        risk.detected_terms && risk.detected_terms.length
-          ? `<div class="terms">${risk.detected_terms.map((term) => `<span class="term">${escapeHtml(term)}</span>`).join("")}</div>`
-          : ""
-      }
+      ${item.estimated_impact ? `<div class="impact">${escapeHtml(item.estimated_impact)}</div>` : ""}
+      ${proof}
     </div>
   `;
 }
@@ -221,7 +207,7 @@ function renderChange(change) {
   const isTable = change.old_block?.kind === "table_row" || change.new_block?.kind === "table_row";
   if (diffMode === "split" && change.change_type === "modified") {
     return `
-      <div class="diff-row diff-row-${change.change_type} diff-row-split">
+      <div id="change-${escapeHtml(change.change_id)}" class="diff-row diff-row-${change.change_type} diff-row-split">
         <div class="diff-split">
           <div class="diff-side diff-old">${renderDiffSide(change, "old", oldText, isTable)}</div>
           <div class="diff-side diff-new">${renderDiffSide(change, "new", newText, isTable)}</div>
@@ -232,7 +218,7 @@ function renderChange(change) {
 
   const content = renderUnifiedChange(change, oldText, newText, isTable);
   return `
-    <div class="diff-row diff-row-${change.change_type}">
+    <div id="change-${escapeHtml(change.change_id)}" class="diff-row diff-row-${change.change_type}">
       <div class="diff-single">${content}</div>
     </div>
   `;

@@ -9,7 +9,7 @@ import pytest
 from src import config
 from src.api.app import _build_primary_insight_providers
 from src.integrations.openrouter_provider import OpenRouterInsightProvider, _extract_json_content
-from src.schemas.insights import LegalSummary
+from src.schemas.insights import ChangeReport
 
 
 def test_openrouter_provider_requires_key(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -44,10 +44,7 @@ def test_openrouter_provider_validates_structured_json(
                 "choices": [
                     {
                         "message": {
-                            "content": LegalSummary(
-                                plain_language_summary="ok",
-                                legal_significance="ok",
-                            ).model_dump_json()
+                            "content": ChangeReport(summary="ok").model_dump_json()
                         }
                     }
                 ]
@@ -58,11 +55,11 @@ def test_openrouter_provider_validates_structured_json(
 
     result = OpenRouterInsightProvider()._generate_json(
         "prompt",
-        LegalSummary,
-        schema_name="legal_summary",
+        schema_name="change_report",
     )
 
-    assert result.plain_language_summary == "ok"
+    assert result.summary == "ok"
+    assert result.provider == "openrouter"
     assert captured["url"].endswith("/chat/completions")
     assert captured["headers"]["Authorization"] == "Bearer openrouter-key"
     assert captured["json"]["response_format"]["type"] == "json_schema"

@@ -44,8 +44,8 @@ def test_compare_uploads_returns_diff_summary_and_risks(
     assert payload["report_url"] == f"/report.html?id={payload['report_id']}"
     assert payload["comparison"]["comparison_id"]
     assert payload["comparison"]["changes"]
-    assert payload["summary"]["plain_language_summary"]
-    assert "risk_assessment" in payload
+    assert payload["report"]["summary"]
+    assert "changes" in payload["report"]
 
     reports_response = client.get("/api/reports")
     assert reports_response.status_code == 200
@@ -117,8 +117,8 @@ def test_review_upload_returns_single_document_summary_and_risks(
     assert payload["blocks_count"] > 0
     assert payload["review_id"]
     assert payload["review_url"] == f"/review-report.html?id={payload['review_id']}"
-    assert payload["summary"]["plain_language_summary"]
-    assert "risk_assessment" in payload
+    assert payload["report"]["summary"]
+    assert "changes" in payload["report"]
 
     reviews_response = client.get("/api/reviews")
     assert reviews_response.status_code == 200
@@ -157,7 +157,7 @@ def test_review_existing_document_by_id(
     assert payload["document"]["document_id"] == document_id
     assert payload["review_id"]
     assert payload["review_url"] == f"/review-report.html?id={payload['review_id']}"
-    assert payload["summary"]["provider"] == "fallback"
+    assert payload["report"]["provider"] == "fallback"
 
     review_response = client.get(f"/api/reviews/{payload['review_id']}")
     assert review_response.status_code == 200

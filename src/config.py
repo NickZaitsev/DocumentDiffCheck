@@ -73,70 +73,58 @@ OPENROUTER_TEMPERATURE = _env_float("OPENROUTER_TEMPERATURE", 0.1)
 OPENROUTER_SITE_URL = _env_str("OPENROUTER_SITE_URL", "http://127.0.0.1:8010")
 OPENROUTER_APP_NAME = _env_str("OPENROUTER_APP_NAME", "Document Diff Check")
 
-LEGAL_SUMMARY_PROMPT = """
+COMPARISON_ANALYSIS_PROMPT = """
 You are a legal document review assistant. Analyze only the provided structured
 DOCX diff. Do not invent clauses that are not present in the diff.
 
 Return JSON that matches the provided schema. Write in Russian.
 
-Focus on:
-- what materially changed;
-- what the change means for a lawyer reviewing the contract;
-- which clauses deserve manual review;
-- neutral wording, without legal advice beyond the provided text.
+Produce ONE unified list of changes ("changes"). For each change:
+- "description": one self-contained sentence describing what changed, for a
+  lawyer (no headings, no separate "significance" field, no boilerplate);
+- "source_change_ids": the change_id values from the payload that this item
+  covers (one or several). Use only ids that exist in the payload;
+- "financial_risk": true if the change affects money or liability — payment,
+  price/cost/amount/quantity, penalties, fines, late delivery/payment,
+  liability, prepayment, refund, indexation, taxes;
+- "risk_type": short tag when financial_risk is true (e.g. payment, penalty,
+  liability, cost), otherwise null;
+- "estimated_impact": when financial_risk is true, the money effect as a value
+  or a short formula/explanation; null when it cannot be estimated. Do not
+  invent missing contract values.
+
+Also fill:
+- "summary": 1-2 sentences on what changed overall;
+- "overall_risk_level": "low" | "medium" | "high" based on the financial items;
+- "recommended_review_points": a few concrete things a lawyer should check.
 
 Comparison payload:
 {comparison_payload}
 """.strip()
 
-FINANCIAL_RISK_PROMPT = """
-You are a financial risk extraction assistant for legal contract changes.
-Analyze only the provided changed clauses. Treat model output as structured data.
-
-Return JSON that matches the provided schema. Write in Russian.
-
-Find risks related to:
-- penalties, fines, liquidated damages, late delivery, late payment;
-- percentages, fixed money amounts, payment terms, indexation;
-- liability caps, uncapped liability, prepayment, refund, withholding.
-
-For estimated impact, provide a formula or explanation when exact money value
-cannot be calculated from the text. Do not invent missing contract values.
-
-Comparison payload:
-{comparison_payload}
-""".strip()
-
-DOCUMENT_REVIEW_SUMMARY_PROMPT = """
+DOCUMENT_ANALYSIS_PROMPT = """
 You are a legal document review assistant. Analyze only the provided structured
 DOCX document blocks. Do not invent clauses that are not present in the document.
 
 Return JSON that matches the provided schema. Write in Russian.
 
-Focus on:
-- document purpose and major obligations;
-- clauses that deserve manual legal review;
-- unclear, risky, missing, or unusually strict terms;
-- neutral wording, without legal advice beyond the provided text.
+Produce ONE unified list of findings ("changes"). For each finding:
+- "description": one self-contained sentence about a clause worth a lawyer's
+  attention (no headings, no separate "significance" field);
+- "source_change_ids": the block_id values from the payload this item refers to.
+  Use only ids that exist in the payload;
+- "financial_risk": true if the clause affects money or liability — payment,
+  price/cost/amount/quantity, penalties, fines, late delivery/payment,
+  liability, prepayment, refund, indexation, taxes;
+- "risk_type": short tag when financial_risk is true, otherwise null;
+- "estimated_impact": when financial_risk is true, the money effect as a value
+  or a short formula/explanation; null when it cannot be estimated. Do not
+  invent missing contract values.
 
-Document payload:
-{document_payload}
-""".strip()
-
-DOCUMENT_REVIEW_RISK_PROMPT = """
-You are a financial risk extraction assistant for one legal contract.
-Analyze only the provided document blocks. Treat model output as structured data.
-
-Return JSON that matches the provided schema. Write in Russian.
-
-Find risks related to:
-- penalties, fines, liquidated damages, late delivery, late payment;
-- percentages, fixed money amounts, payment terms, indexation;
-- liability caps, uncapped liability, prepayment, refund, withholding.
-
-Use the source block id as source_change_id. For estimated impact, provide a
-formula or explanation when exact money value cannot be calculated from the text.
-Do not invent missing contract values.
+Also fill:
+- "summary": 1-2 sentences on the document's purpose and main obligations;
+- "overall_risk_level": "low" | "medium" | "high" based on the financial items;
+- "recommended_review_points": a few concrete things a lawyer should check.
 
 Document payload:
 {document_payload}

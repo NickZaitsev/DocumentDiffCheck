@@ -12,7 +12,7 @@ def test_gemini_api_keys_accept_single_string(
     assert _gemini_api_keys() == ("key-one",)
 
 
-def test_gemini_provider_exposes_summary_and_risk_methods() -> None:
-    assert hasattr(GeminiInsightProvider, "generate_summary")
-    assert hasattr(GeminiInsightProvider, "assess_risks")
+def test_gemini_provider_exposes_analysis_methods() -> None:
+    assert hasattr(GeminiInsightProvider, "analyze_comparison")
+    assert hasattr(GeminiInsightProvider, "analyze_document")
 
