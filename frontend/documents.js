@@ -45,7 +45,7 @@ function renderDocuments(documents) {
           <div class="doc-body">
             <strong title="${escapeHtml(doc.label)}">${escapeHtml(doc.label)}</strong>
             <div class="doc-meta">${formatDate(doc.created_at)} · ${formatBytes(doc.size_bytes)}</div>
-            <div class="doc-id" title="${escapeHtml(doc.document_id)}">Код: ${escapeHtml(documentCode(doc.document_id))}</div>
+            <div class="doc-id" title="${escapeHtml(doc.document_id)}">${escapeHtml(displayDocumentId(doc.document_id))}</div>
           </div>
           <button class="copy-id-btn" type="button" data-copy-id="${escapeHtml(doc.document_id)}" title="Скопировать ID" aria-label="Скопировать ID">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -100,8 +100,12 @@ function sortDocumentsNewestFirst(documents) {
   );
 }
 
-function documentCode(value) {
-  return `DOC-${String(value).slice(-4).toUpperCase()}`;
+function displayDocumentId(value) {
+  const text = String(value);
+  if (text.length <= 18) {
+    return text;
+  }
+  return `${text.slice(0, 8)}...${text.slice(-6)}`;
 }
 
 function formatBytes(bytes) {

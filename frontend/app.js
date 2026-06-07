@@ -251,7 +251,7 @@ function renderDocuments(documents) {
           <div class="doc-body">
             <strong title="${escapeHtml(doc.label)}">${escapeHtml(doc.label)}</strong>
             <div class="doc-meta">${formatDate(doc.created_at)} · ${formatBytes(doc.size_bytes)}</div>
-            <div class="doc-id" title="${escapeHtml(doc.document_id)}">Код: ${escapeHtml(documentCode(doc.document_id))}</div>
+            <div class="doc-id" title="${escapeHtml(doc.document_id)}">${escapeHtml(displayDocumentId(doc.document_id))}</div>
           </div>
           <button class="copy-id-btn" type="button" data-copy-id="${escapeHtml(doc.document_id)}" title="Скопировать ID" aria-label="Скопировать ID">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -304,7 +304,7 @@ function populateSelects(documents) {
   storedDocumentsList.innerHTML = documents
     .map(
       (doc) =>
-        `<option value="${escapeHtml(doc.label)}">${escapeHtml(documentCode(doc.document_id))} · ${formatDate(doc.created_at)}</option>`,
+        `<option value="${escapeHtml(doc.label)}">${escapeHtml(displayDocumentId(doc.document_id))} · ${formatDate(doc.created_at)}</option>`,
     )
     .join("");
 }
@@ -329,7 +329,7 @@ function setStoredSlot(slot, storedDocument) {
   fileLabel.hidden = false;
   fileLabel.innerHTML = renderSelectedFile("Загруженный документ", storedDocument.label, {
     date: formatDate(storedDocument.created_at),
-    code: documentCode(storedDocument.document_id),
+    code: displayDocumentId(storedDocument.document_id),
     id: storedDocument.document_id,
   });
 }
@@ -367,13 +367,13 @@ function findDocumentByPickerValue(value) {
   }
   return (
     allDocuments.find((document) => document.document_id.toLowerCase() === normalized) ||
-    allDocuments.find((document) => documentCode(document.document_id).toLowerCase() === normalized) ||
+    allDocuments.find((document) => displayDocumentId(document.document_id).toLowerCase() === normalized) ||
     allDocuments.find((document) => document.label.toLowerCase() === normalized) ||
     allDocuments.find((document) => document.filename.toLowerCase() === normalized) ||
     allDocuments.find(
       (document) =>
         document.document_id.toLowerCase().includes(normalized) ||
-        documentCode(document.document_id).toLowerCase().includes(normalized) ||
+        displayDocumentId(document.document_id).toLowerCase().includes(normalized) ||
         document.label.toLowerCase().includes(normalized),
     ) ||
     null
@@ -400,9 +400,12 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
-function documentCode(value) {
+function displayDocumentId(value) {
   const text = String(value);
-  return `DOC-${text.slice(-4).toUpperCase()}`;
+  if (text.length <= 18) {
+    return text;
+  }
+  return `${text.slice(0, 8)}...${text.slice(-6)}`;
 }
 
 /* ---------- Render results ---------- */
