@@ -6,7 +6,12 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel
 
-from src.domain.entities import ChangeType, ComparisonResult, DocumentChange
+from src.domain.entities import (
+    ChangeType,
+    ComparisonResult,
+    DocumentChange,
+    ParsedDocument,
+)
 from src.domain.exceptions import AIProcessingError
 from src.domain.ports import InsightProvider
 from src.schemas.insights import (
@@ -66,6 +71,20 @@ class ComparisonPromptPayload(BaseModel):
     new_filename: str
     stats: PromptStats
     changes: list[PromptChange]
+
+
+class PromptDocumentBlock(BaseModel):
+    block_id: str
+    index: int
+    kind: str
+    text: str
+
+
+class DocumentReviewPromptPayload(BaseModel):
+    document_id: str
+    filename: str
+    blocks_count: int
+    blocks: list[PromptDocumentBlock]
 
 
 class FallbackInsightProvider:
@@ -151,6 +170,87 @@ class FallbackInsightProvider:
             provider="fallback",
         )
 
+    def generate_document_summary(self, document: ParsedDocument) -> LegalSummary:
+        blocks = [block for block in document.blocks if block.text.strip()]
+        preview = blocks[:8]
+        key_changes = [
+            KeyChange(
+                title=f"Блок {block.index + 1}",
+                change_type="review_point",
+                description=block.text[:500],
+                legal_significance=self._block_legal_significance(block.text),
+                source_change_ids=[block.block_id],
+            )
+            for block in preview
+        ]
+        return LegalSummary(
+            plain_language_summary=(
+                f"Документ «{document.filename}» разобран на {len(blocks)} "
+                "текстовых блоков. Автоматическое ревью выделяет основные "
+                "положения и риск-кандидаты для ручной проверки."
+            ),
+            key_changes=key_changes,
+            legal_significance=(
+                "Ревью построено по структурно извлеченному тексту DOCX. "
+                "Юристу стоит проверить предмет договора, обязанности сторон, "
+                "сроки, оплату, ответственность и основания расторжения."
+            ),
+            recommended_review_points=[
+                "Проверить предмет договора и исполнимость ключевых обязанностей.",
+                "Сверить суммы, проценты, сроки оплаты и поставки.",
+                "Проверить санкции, ограничения ответственности и порядок расторжения.",
+            ],
+            provider="fallback",
+        )
+
+    def assess_document_risks(self, document: ParsedDocument) -> RiskAssessment:
+        risks: list[FinancialRisk] = []
+        for block in document.blocks:
+            source_text = block.text.strip()
+            if not source_text:
+                continue
+            terms = self._detected_terms(source_text)
+            money_terms = _MONEY_OR_PERCENT_RE.findall(source_text)
+            if not terms and not money_terms:
+                continue
+            confidence = 0.5
+            if terms:
+                confidence += 0.2
+            if money_terms:
+                confidence += 0.2
+            confidence = min(confidence, 0.9)
+            risks.append(
+                FinancialRisk(
+                    title="Потенциальный финансовый риск в условии договора",
+                    risk_type=self._risk_type(terms),
+                    source_change_id=block.block_id,
+                    source_text=source_text[:1200],
+                    explanation=(
+                        "В блоке документа обнаружены формулировки, связанные "
+                        "с платежами, ответственностью, санкциями или сроками."
+                    ),
+                    estimated_impact=self._estimated_impact(money_terms),
+                    confidence=confidence,
+                    detected_terms=[*terms, *money_terms],
+                )
+            )
+
+        overall = "low"
+        if any(risk.confidence >= 0.85 for risk in risks):
+            overall = "high"
+        elif risks:
+            overall = "medium"
+
+        return RiskAssessment(
+            overall_risk_level=overall,
+            risks=risks[:12],
+            review_recommendation=(
+                "Проверить найденные риск-кандидаты вручную: fallback extractor "
+                "не заменяет юридическое заключение."
+            ),
+            provider="fallback",
+        )
+
     def _changed(self, comparison: ComparisonResult) -> list[DocumentChange]:
         return [
             change
@@ -181,6 +281,11 @@ class FallbackInsightProvider:
         if self._detected_terms(source):
             return "Может влиять на финансовые обязанности или ответственность сторон."
         return "Требует проверки в контексте договора."
+
+    def _block_legal_significance(self, text: str) -> str:
+        if self._detected_terms(text) or _MONEY_OR_PERCENT_RE.search(text):
+            return "Может влиять на финансовые обязанности или ответственность сторон."
+        return "Требует проверки в контексте всего документа."
 
     def _source_text(self, change: DocumentChange) -> str:
         if change.new_block is not None:
@@ -248,6 +353,30 @@ class ResilientInsightProvider:
         )
         return risks.model_copy(update={"provider": provider_name})
 
+    def generate_document_summary(self, document: ParsedDocument) -> LegalSummary:
+        for provider in self._primary_providers:
+            try:
+                return provider.generate_document_summary(document)
+            except AIProcessingError:
+                continue
+        summary = self._fallback.generate_document_summary(document)
+        provider_name = (
+            "fallback_after_llm_error" if self._primary_providers else "fallback"
+        )
+        return summary.model_copy(update={"provider": provider_name})
+
+    def assess_document_risks(self, document: ParsedDocument) -> RiskAssessment:
+        for provider in self._primary_providers:
+            try:
+                return provider.assess_document_risks(document)
+            except AIProcessingError:
+                continue
+        risks = self._fallback.assess_document_risks(document)
+        provider_name = (
+            "fallback_after_llm_error" if self._primary_providers else "fallback"
+        )
+        return risks.model_copy(update={"provider": provider_name})
+
 
 def build_prompt_payload(
     comparison: ComparisonResult,
@@ -291,6 +420,38 @@ def build_prompt_payload(
                 similarity=round(change.similarity, 4),
             )
             for change in changes[:max_changes]
+        ],
+    )
+
+
+def build_document_review_payload(
+    document: ParsedDocument,
+    *,
+    risk_only: bool = False,
+    max_blocks: int = 80,
+) -> DocumentReviewPromptPayload:
+    blocks = [block for block in document.blocks if block.text.strip()]
+    if risk_only:
+        fallback = FallbackInsightProvider()
+        blocks = [
+            block
+            for block in blocks
+            if fallback._detected_terms(block.text)
+            or _MONEY_OR_PERCENT_RE.search(block.text)
+        ]
+
+    return DocumentReviewPromptPayload(
+        document_id=document.document_id,
+        filename=document.filename,
+        blocks_count=len(document.blocks),
+        blocks=[
+            PromptDocumentBlock(
+                block_id=block.block_id,
+                index=block.index,
+                kind=block.kind.value,
+                text=_trim(block.text) or "",
+            )
+            for block in blocks[:max_blocks]
         ],
     )
 

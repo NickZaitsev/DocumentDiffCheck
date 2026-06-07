@@ -106,3 +106,38 @@ cannot be calculated from the text. Do not invent missing contract values.
 Comparison payload:
 {comparison_payload}
 """.strip()
+
+DOCUMENT_REVIEW_SUMMARY_PROMPT = """
+You are a legal document review assistant. Analyze only the provided structured
+DOCX document blocks. Do not invent clauses that are not present in the document.
+
+Return JSON that matches the provided schema. Write in Russian.
+
+Focus on:
+- document purpose and major obligations;
+- clauses that deserve manual legal review;
+- unclear, risky, missing, or unusually strict terms;
+- neutral wording, without legal advice beyond the provided text.
+
+Document payload:
+{document_payload}
+""".strip()
+
+DOCUMENT_REVIEW_RISK_PROMPT = """
+You are a financial risk extraction assistant for one legal contract.
+Analyze only the provided document blocks. Treat model output as structured data.
+
+Return JSON that matches the provided schema. Write in Russian.
+
+Find risks related to:
+- penalties, fines, liquidated damages, late delivery, late payment;
+- percentages, fixed money amounts, payment terms, indexation;
+- liability caps, uncapped liability, prepayment, refund, withholding.
+
+Use the source block id as source_change_id. For estimated impact, provide a
+formula or explanation when exact money value cannot be calculated from the text.
+Do not invent missing contract values.
+
+Document payload:
+{document_payload}
+""".strip()

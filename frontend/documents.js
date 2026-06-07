@@ -59,6 +59,7 @@ function renderDocuments(documents, { query = "" } = {}) {
 
   const selectedId = new URLSearchParams(window.location.search).get("id");
   const fileIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>`;
+  const historyIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>`;
   documentsPageList.className = "documents page-documents";
   documentsPageList.innerHTML = documents
     .map(
@@ -76,6 +77,9 @@ function renderDocuments(documents, { query = "" } = {}) {
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
             </svg>
           </button>
+          <a class="comparison-history-btn" href="/history.html?document_id=${encodeURIComponent(doc.document_id)}" title="История сравнений" aria-label="История сравнений">
+            ${historyIcon}
+          </a>
           <a class="download-doc-btn" href="/api/documents/${encodeURIComponent(doc.document_id)}/download" title="Скачать документ" aria-label="Скачать документ">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>

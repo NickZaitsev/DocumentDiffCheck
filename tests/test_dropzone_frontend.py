@@ -13,7 +13,10 @@ def test_selected_dropzone_hides_upload_prompt() -> None:
     assert 'renderSelectedFile("Локальный файл", file.name)' in script
     assert 'renderSelectedFile("Загруженный документ", storedDocument.label' in script
     assert ".dropzone.has-file .dz-text" in styles
-    assert "display: none;" in styles[styles.index(".dropzone.has-file .dz-text") :]
+    rule_start = styles.index(".dropzone.has-file .dz-text")
+    rule_end = styles.index(".stored-picker", rule_start)
+
+    assert "display: none;" in styles[rule_start:rule_end]
 
 
 def test_selected_dropzone_uses_structured_file_summary() -> None:
