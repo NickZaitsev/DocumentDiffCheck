@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -46,15 +46,21 @@ class LocalDocumentRepository:
         target_path = self._storage_dir / f"{document_id}{suffix}"
         target_path.write_bytes(content)
 
+        records = self._load_records()
+        created_at = datetime.now(UTC)
+        if records:
+            latest_created_at = max(record.created_at for record in records.values())
+            if created_at <= latest_created_at:
+                created_at = latest_created_at + timedelta(microseconds=1)
+
         record = DocumentRecord(
             document_id=document_id,
             filename=Path(filename).name,
             content_type=content_type or "application/octet-stream",
             path=str(target_path),
             size_bytes=len(content),
-            created_at=datetime.now(UTC),
+            created_at=created_at,
         )
-        records = self._load_records()
         records[record.document_id] = record
         self._save_records(records)
         return record.to_domain()

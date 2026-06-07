@@ -16,18 +16,15 @@
     <header class="topbar">
       <div class="topbar-inner">
         <div class="brand">
-          <span class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <path d="M14 2v6h6" />
-              <path d="M9 13h6M9 17h3" />
-            </svg>
-          </span>
           <div class="brand-text">
-            <strong>Document Diff Check</strong>
-            <span>DOCX diff · summary для юриста · оценка финансовых рисков</span>
+            <strong>Docreview</strong>
           </div>
         </div>
+        <nav class="topnav" aria-label="Основная навигация">
+          <a href="#compare">Сравнить документы</a>
+          <a href="#reportsHistory">История</a>
+          <a href="#docsCard">Документы</a>
+        </nav>
         <button id="themeToggle" class="icon-btn" type="button" title="Сменить тему" aria-label="Сменить тему">
           <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="4" />
@@ -50,7 +47,7 @@
       </section>
 
       <section class="workbench">
-        <div class="card compare-card">
+        <div id="compare" class="card compare-card">
           <div class="card-head">
             <h2>Сравнить документы</h2>
           </div>

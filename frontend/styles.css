@@ -105,12 +105,14 @@ h1, h2, h3, p {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 18px;
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .report-brand {
@@ -141,13 +143,39 @@ h1, h2, h3, p {
 }
 
 .brand-text strong {
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0;
 }
 
 .brand-text span {
   font-size: 12px;
   color: var(--muted);
+}
+
+.topnav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.topnav a {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9px;
+  padding: 0 12px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.topnav a:hover {
+  background: var(--panel-2);
+  color: var(--text);
 }
 
 .icon-btn {
@@ -1229,7 +1257,18 @@ input::placeholder { color: var(--muted); opacity: 0.6; }
   .dropzones { grid-template-columns: 1fr; }
   .dz-arrow { transform: rotate(90deg); }
   .text-pair { grid-template-columns: 1fr; }
-  .brand-text span { display: none; }
+  .topbar-inner {
+    height: auto;
+    min-height: 64px;
+    flex-wrap: wrap;
+    padding: 10px 0;
+  }
+  .topnav {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
   .card-head { flex-wrap: wrap; gap: 10px; }
   .tab { font-size: 13px; }
   .document-item,
