@@ -261,7 +261,7 @@ function renderDocuments(documents) {
           <div class="doc-body">
             <strong title="${escapeHtml(doc.label)}">${escapeHtml(doc.label)}</strong>
             <div class="doc-meta">${formatDate(doc.created_at)} · ${formatBytes(doc.size_bytes)}</div>
-            <div class="doc-id">${escapeHtml(doc.document_id)}</div>
+            <div class="doc-id" title="${escapeHtml(doc.document_id)}">${escapeHtml(shortId(doc.document_id))}</div>
           </div>
           <button class="copy-id-btn" type="button" data-copy-id="${escapeHtml(doc.document_id)}" title="Скопировать ID" aria-label="Скопировать ID">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -372,7 +372,7 @@ function setStoredSlot(slot, storedDocument) {
   zone.classList.add("has-file", "has-stored");
   zone.classList.remove("is-dragover");
   fileLabel.hidden = false;
-  fileLabel.innerHTML = `Загруженный: ${escapeHtml(storedDocument.label)}<br><small>${formatDate(storedDocument.created_at)} · ${escapeHtml(storedDocument.document_id)}</small>`;
+  fileLabel.innerHTML = `Загруженный: ${escapeHtml(storedDocument.label)}<br><small>${formatDate(storedDocument.created_at)} · <span title="${escapeHtml(storedDocument.document_id)}">${escapeHtml(shortId(storedDocument.document_id))}</span></small>`;
 }
 
 function findDocumentByPickerValue(value) {
@@ -411,6 +411,14 @@ function formatDate(value) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function shortId(value) {
+  const text = String(value);
+  if (text.length <= 12) {
+    return text;
+  }
+  return `${text.slice(0, 8)}…${text.slice(-4)}`;
 }
 
 /* ---------- Render results ---------- */
