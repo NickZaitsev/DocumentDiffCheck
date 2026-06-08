@@ -71,7 +71,7 @@ function renderReview(payload) {
   reviewStats.innerHTML = [
     stat("Блоков", payload.blocks_count, "s-sim"),
     stat("Рисков", riskCount, riskCount ? "s-modified" : "s-added"),
-    stat("Уровень", String(report.overall_risk_level || "low").toUpperCase(), "s-sim"),
+    stat("Риск", riskLevelLabel(report.overall_risk_level), "s-sim"),
   ].join("");
   renderFeed(report);
 }
@@ -90,12 +90,13 @@ function renderFeed(report) {
   feedCount.hidden = !changes.length;
   feedCount.textContent = changes.length;
 
-  const levelCls = "lvl-" + String(report.overall_risk_level || "low").toLowerCase();
+  const riskLevel = report.overall_risk_level || "low";
+  const levelCls = "lvl-" + String(riskLevel).toLowerCase();
   reviewPanel.innerHTML = `
     <div class="stack">
       <div class="risk-banner">
         <span class="rb-text">${escapeHtml(report.summary)}</span>
-        <span class="level-badge ${levelCls}"><span class="dot"></span>${escapeHtml(report.overall_risk_level || "low")}</span>
+        <span class="level-badge ${levelCls}"><span class="dot"></span>${escapeHtml(formatRiskLevelBadge(riskLevel))}</span>
       </div>
       ${riskCount ? `<p class="feed-sub">Финансовых рисков: <b>${riskCount}</b>.</p>` : ""}
       ${
@@ -152,6 +153,21 @@ function displayDocumentId(value) {
   const text = String(value);
   if (text.length <= 18) return text;
   return `${text.slice(0, 8)}...${text.slice(-6)}`;
+}
+
+function formatRiskLevelBadge(level) {
+  return `Риск: ${riskLevelLabel(level)}`;
+}
+
+function riskLevelLabel(level) {
+  const labels = {
+    low: "низкий",
+    medium: "средний",
+    high: "высокий",
+    critical: "критический",
+    none: "не выявлен",
+  };
+  return labels[String(level || "low").toLowerCase()] || String(level);
 }
 
 function toast(message, type = "info") {

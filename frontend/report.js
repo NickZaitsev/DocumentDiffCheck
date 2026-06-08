@@ -142,12 +142,13 @@ function renderFeed(report) {
   feedCount.hidden = !changes.length;
   feedCount.textContent = changes.length;
 
-  const levelClass = `lvl-${String(report.overall_risk_level || "low").toLowerCase()}`;
+  const riskLevel = report.overall_risk_level || "low";
+  const levelClass = `lvl-${String(riskLevel).toLowerCase()}`;
   summaryPanel.innerHTML = `
     <div class="stack">
       <div class="risk-banner">
         <span class="rb-text">${escapeHtml(report.summary)}</span>
-        <span class="level-badge ${levelClass}"><span class="dot"></span>${escapeHtml(report.overall_risk_level || "low")}</span>
+        <span class="level-badge ${levelClass}"><span class="dot"></span>${escapeHtml(formatRiskLevelBadge(riskLevel))}</span>
       </div>
       ${riskCount ? `<p class="feed-sub">Финансовых рисков: <b>${riskCount}</b> из ${changes.length} изменений.</p>` : ""}
       ${
@@ -359,6 +360,21 @@ function formatDate(value) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function formatRiskLevelBadge(level) {
+  return `Риск: ${riskLevelLabel(level)}`;
+}
+
+function riskLevelLabel(level) {
+  const labels = {
+    low: "низкий",
+    medium: "средний",
+    high: "высокий",
+    critical: "критический",
+    none: "не выявлен",
+  };
+  return labels[String(level || "low").toLowerCase()] || String(level);
 }
 
 function escapeHtml(value) {

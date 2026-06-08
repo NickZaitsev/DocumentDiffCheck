@@ -196,7 +196,7 @@ function renderReview(payload) {
   reviewStats.innerHTML = [
     stat("Блоков", payload.blocks_count, "s-sim"),
     stat("Рисков", payload.risk_assessment.risks.length, payload.risk_assessment.risks.length ? "s-modified" : "s-added"),
-    stat("Уровень", payload.risk_assessment.overall_risk_level.toUpperCase(), "s-sim"),
+    stat("Риск", riskLevelLabel(payload.risk_assessment.overall_risk_level), "s-sim"),
   ].join("");
   renderSummary(payload.summary);
   renderRisks(payload.risk_assessment);
@@ -252,19 +252,20 @@ function renderRisks(assessment) {
       <div class="stack">
         <div class="risk-banner">
           <span class="rb-text">Финансовые риск-кандидаты не найдены.</span>
-          <span class="level-badge level-low"><span class="dot"></span>LOW</span>
+          <span class="level-badge level-low"><span class="dot"></span>${escapeHtml(formatRiskLevelBadge("low"))}</span>
         </div>
         <span class="provider-tag">${escapeHtml(assessment.provider)}</span>
       </div>
     `;
     return;
   }
-  const levelCls = "lvl-" + String(assessment.overall_risk_level).toLowerCase();
+  const riskLevel = assessment.overall_risk_level || "low";
+  const levelCls = "lvl-" + String(riskLevel).toLowerCase();
   risksPanel.innerHTML = `
     <div class="stack">
       <div class="risk-banner">
         <span class="rb-text">${escapeHtml(assessment.review_recommendation)}</span>
-        <span class="level-badge ${levelCls}"><span class="dot"></span>${escapeHtml(assessment.overall_risk_level)}</span>
+        <span class="level-badge ${levelCls}"><span class="dot"></span>${escapeHtml(formatRiskLevelBadge(riskLevel))}</span>
       </div>
       ${assessment.risks.map(renderRisk).join("")}
       <span class="provider-tag">${escapeHtml(assessment.provider)}${assessment.model ? ` · ${escapeHtml(assessment.model)}` : ""}</span>
@@ -481,6 +482,21 @@ function displayDocumentId(value) {
   const text = String(value);
   if (text.length <= 18) return text;
   return `${text.slice(0, 8)}...${text.slice(-6)}`;
+}
+
+function formatRiskLevelBadge(level) {
+  return `Риск: ${riskLevelLabel(level)}`;
+}
+
+function riskLevelLabel(level) {
+  const labels = {
+    low: "низкий",
+    medium: "средний",
+    high: "высокий",
+    critical: "критический",
+    none: "не выявлен",
+  };
+  return labels[String(level || "low").toLowerCase()] || String(level);
 }
 
 function toast(message, type = "info") {
