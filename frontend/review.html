@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Document Diff Check</title>
+    <title>Ревью документа · Docreview</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -16,9 +16,7 @@
     <header class="topbar">
       <div class="topbar-inner">
         <a class="brand report-brand" href="/">
-          <div class="brand-text">
-            <strong>Docreview</strong>
-          </div>
+          <div class="brand-text"><strong>Docreview</strong></div>
         </a>
         <button class="icon-btn nav-toggle" type="button" aria-label="Открыть меню" aria-expanded="false" aria-controls="primaryNav" data-nav-toggle>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -48,81 +46,43 @@
     </header>
 
     <main class="app">
-      <section class="hero">
-        <h1>Сравнение редакций договора</h1>
-        <p>
-          Загрузите старую и новую версии DOCX — система найдёт правки,
-          подготовит summary для юриста и подсветит потенциальные финансовые риски.
-        </p>
+      <section class="hero page-hero">
+        <h1>Ревью одного документа</h1>
+        <p>Загрузите DOCX или выберите уже сохраненный файл, чтобы получить summary и финансовые риск-кандидаты без сравнения редакций.</p>
       </section>
 
-      <section class="workbench">
-        <div id="compare" class="card compare-card">
+      <section class="review-layout">
+        <div class="card review-card">
           <div class="card-head">
-            <h2>Сравнить документы</h2>
+            <h2>Документ для ревью</h2>
           </div>
-
-          <form id="uploadCompareForm" class="mode-pane">
-            <div class="dropzones">
-              <label class="dropzone" data-for="oldFile">
-                <input id="oldFile" name="old_file" type="file" accept=".docx" />
-                <span class="dz-tag dz-tag-old">Старая версия</span>
-                <span class="dz-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <path d="M7 10l5-5 5 5M12 5v12" />
-                  </svg>
-                </span>
-                <span class="dz-text">Перетащите файл<br /><em>или нажмите для выбора</em></span>
-                <span class="dz-file" hidden></span>
-                <span class="stored-picker">
-                  <input
-                    id="oldStoredSearch"
-                    type="text"
-                    list="storedDocumentsList"
-                    autocomplete="off"
-                    placeholder="Выбрать загруженный по названию или ID"
-                    data-picker="old"
-                  />
-                </span>
-              </label>
-
-              <span class="dz-arrow" aria-hidden="true">
+          <form id="reviewForm" class="mode-pane">
+            <label class="dropzone single-dropzone" data-for="reviewFile">
+              <input id="reviewFile" name="file" type="file" accept=".docx" />
+              <span class="dz-tag dz-tag-new">DOCX</span>
+              <span class="dz-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M5 12h14M13 6l6 6-6 6" />
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <path d="M7 10l5-5 5 5M12 5v12" />
                 </svg>
               </span>
-
-              <label class="dropzone" data-for="newFile">
-                <input id="newFile" name="new_file" type="file" accept=".docx" />
-                <span class="dz-tag dz-tag-new">Новая версия</span>
-                <span class="dz-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <path d="M7 10l5-5 5 5M12 5v12" />
-                  </svg>
-                </span>
-                <span class="dz-text">Перетащите файл<br /><em>или нажмите для выбора</em></span>
-                <span class="dz-file" hidden></span>
-                <span class="stored-picker">
-                  <input
-                    id="newStoredSearch"
-                    type="text"
-                    list="storedDocumentsList"
-                    autocomplete="off"
-                    placeholder="Выбрать загруженный по названию или ID"
-                    data-picker="new"
-                  />
-                </span>
-              </label>
-            </div>
-
+              <span class="dz-text">Перетащите файл<br /><em>или нажмите для выбора</em></span>
+              <span class="dz-file" hidden></span>
+              <span class="stored-picker">
+                <input
+                  id="reviewStoredSearch"
+                  type="text"
+                  list="storedDocumentsList"
+                  autocomplete="off"
+                  placeholder="Выбрать загруженный по названию или ID"
+                />
+              </span>
+            </label>
             <button class="btn btn-primary" type="submit">
-              <span class="btn-label">Сравнить документы</span>
+              <span class="btn-label">Сделать ревью</span>
               <span class="spinner" hidden></span>
             </button>
           </form>
-
         </div>
 
         <details id="docsCard" class="card docs-card" open>
@@ -137,7 +97,7 @@
             </span>
           </summary>
           <div id="documents" class="documents empty">
-            <p class="empty-note">Пока документов нет.<br />Загрузите DOCX слева.</p>
+            <p class="empty-note">Пока документов нет.</p>
           </div>
         </details>
       </section>
@@ -146,12 +106,12 @@
 
       <section id="loading" class="loading-card" hidden>
         <span class="spinner spinner-lg"></span>
-        <p>Сравниваю документы и готовлю анализ…</p>
+        <p>Готовлю отдельное окно с ревью…</p>
       </section>
     </main>
 
     <div id="toasts" class="toasts" aria-live="polite"></div>
     <script src="/nav.js"></script>
-    <script src="/app.js"></script>
+    <script src="/review.js"></script>
   </body>
 </html>

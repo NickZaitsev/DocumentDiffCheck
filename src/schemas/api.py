@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 from src.domain.entities import (
@@ -13,7 +15,7 @@ from src.domain.entities import (
     WordDiffSegment,
     WordDiffType,
 )
-from src.schemas.insights import LegalSummary, RiskAssessment
+from src.schemas.insights import ChangeReport
 
 
 class DocumentOut(BaseModel):
@@ -21,6 +23,7 @@ class DocumentOut(BaseModel):
     filename: str
     content_type: str
     size_bytes: int
+    created_at: datetime
 
     @classmethod
     def from_domain(cls, document: StoredDocument) -> DocumentOut:
@@ -29,6 +32,7 @@ class DocumentOut(BaseModel):
             filename=document.filename,
             content_type=document.content_type,
             size_bytes=document.size_bytes,
+            created_at=document.created_at,
         )
 
 
@@ -121,7 +125,6 @@ class ComparisonOut(BaseModel):
             changes=[
                 DocumentChangeOut.from_domain(change)
                 for change in comparison.changes
-                if change.change_type != ChangeType.UNCHANGED
             ],
         )
 
@@ -131,8 +134,81 @@ class CompareByIdRequest(BaseModel):
     new_document_id: str
 
 
+class ReviewByIdRequest(BaseModel):
+    document_id: str
+
+
 class CompareResponse(BaseModel):
+    report_id: str | None = None
+    report_url: str | None = None
     comparison: ComparisonOut
-    summary: LegalSummary
-    risk_assessment: RiskAssessment
+    report: ChangeReport
+
+
+class DocumentReviewResponse(BaseModel):
+    review_id: str | None = None
+    review_url: str | None = None
+    document: DocumentOut
+    blocks_count: int
+    report: ChangeReport
+
+
+class DocumentReviewOut(BaseModel):
+    review_id: str
+    review_url: str
+    created_at: datetime
+    document: DocumentOut
+    blocks_count: int
+    report: ChangeReport
+
+    def to_response(self) -> DocumentReviewResponse:
+        return DocumentReviewResponse(
+            review_id=self.review_id,
+            review_url=self.review_url,
+            document=self.document,
+            blocks_count=self.blocks_count,
+            report=self.report,
+        )
+
+
+class DocumentReviewSummaryOut(BaseModel):
+    review_id: str
+    review_url: str
+    created_at: datetime
+    document_id: str
+    filename: str
+    blocks_count: int
+    risk_count: int
+    risk_level: str
+
+
+class ComparisonReportOut(BaseModel):
+    report_id: str
+    report_url: str
+    created_at: datetime
+    comparison: ComparisonOut
+    report: ChangeReport
+
+    def to_response(self) -> CompareResponse:
+        return CompareResponse(
+            report_id=self.report_id,
+            report_url=self.report_url,
+            comparison=self.comparison,
+            report=self.report,
+        )
+
+
+class ComparisonReportSummaryOut(BaseModel):
+    report_id: str
+    report_url: str
+    created_at: datetime
+    old_document_id: str
+    new_document_id: str
+    old_filename: str
+    new_filename: str
+    added: int
+    removed: int
+    modified: int
+    risk_count: int
+    risk_level: str
 

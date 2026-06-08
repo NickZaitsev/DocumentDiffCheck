@@ -8,12 +8,17 @@ from uuid import uuid4
 
 from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 
 from src import config
-from src.application.use_cases import CompareDocumentsUseCase, UploadDocumentUseCase
+from src.application.use_cases import (
+    CompareDocumentsUseCase,
+    ReviewDocumentUseCase,
+    UploadDocumentUseCase,
+)
 from src.domain.comparison import DocumentComparisonService
 from src.domain.exceptions import (
     AIProcessingError,
@@ -22,13 +27,27 @@ from src.domain.exceptions import (
     DocumentParsingError,
     DocumentValidationError,
     DomainError,
+    ReportNotFoundError,
+    ReviewNotFoundError,
 )
 from src.infrastructure.docx_parser import DocxDocumentParser
 from src.infrastructure.insights import FallbackInsightProvider, ResilientInsightProvider
+from src.infrastructure.reports import LocalComparisonReportRepository
+from src.infrastructure.reviews import LocalDocumentReviewRepository
 from src.infrastructure.storage import LocalDocumentRepository
 from src.integrations.gemini_provider import GeminiInsightProvider
 from src.integrations.openrouter_provider import OpenRouterInsightProvider
-from src.schemas.api import CompareByIdRequest, CompareResponse, DocumentOut
+from src.schemas.api import (
+    CompareByIdRequest,
+    CompareResponse,
+    ComparisonReportOut,
+    ComparisonReportSummaryOut,
+    DocumentReviewOut,
+    DocumentReviewResponse,
+    DocumentReviewSummaryOut,
+    DocumentOut,
+    ReviewByIdRequest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +69,8 @@ def create_app() -> FastAPI:
     app.add_exception_handler(DomainError, domain_error_handler)
 
     repository = LocalDocumentRepository()
+    report_repository = LocalComparisonReportRepository()
+    review_repository = LocalDocumentReviewRepository()
     parser = DocxDocumentParser()
     comparison_service = DocumentComparisonService()
     insight_provider = ResilientInsightProvider(
@@ -61,6 +82,11 @@ def create_app() -> FastAPI:
         repository=repository,
         parser=parser,
         comparison_service=comparison_service,
+        insight_provider=insight_provider,
+    )
+    review_use_case = ReviewDocumentUseCase(
+        repository=repository,
+        parser=parser,
         insight_provider=insight_provider,
     )
 
@@ -82,13 +108,38 @@ def create_app() -> FastAPI:
     def list_documents() -> list[DocumentOut]:
         return [DocumentOut.from_domain(document) for document in repository.list()]
 
+    @app.get("/api/documents/{document_id}/download")
+    def download_document(document_id: str) -> FileResponse:
+        document = repository.get(document_id)
+        return FileResponse(
+            document.path,
+            media_type=document.content_type,
+            filename=document.filename,
+        )
+
+    @app.get(
+        "/api/documents/{document_id}/reports",
+        response_model=list[ComparisonReportSummaryOut],
+    )
+    def list_document_reports(document_id: str) -> list[ComparisonReportSummaryOut]:
+        repository.get(document_id)
+        return list(report_repository.list_by_document(document_id))
+
+    @app.get(
+        "/api/documents/{document_id}/reviews",
+        response_model=list[DocumentReviewSummaryOut],
+    )
+    def list_document_reviews(document_id: str) -> list[DocumentReviewSummaryOut]:
+        repository.get(document_id)
+        return list(review_repository.list_by_document(document_id))
+
     @app.post("/api/comparisons", response_model=CompareResponse)
     def compare_by_id(payload: CompareByIdRequest) -> CompareResponse:
         result = compare_use_case.execute_by_id(
             old_document_id=payload.old_document_id,
             new_document_id=payload.new_document_id,
         )
-        return result.to_response()
+        return report_repository.save(result.to_response()).to_response()
 
     @app.post("/api/comparisons/upload", response_model=CompareResponse)
     async def compare_uploads(
@@ -105,7 +156,38 @@ def create_app() -> FastAPI:
             new_content_type=new_file.content_type or "application/octet-stream",
             new_content=new_content,
         )
-        return result.to_response()
+        return report_repository.save(result.to_response()).to_response()
+
+    @app.post("/api/reviews", response_model=DocumentReviewResponse)
+    def review_by_id(payload: ReviewByIdRequest) -> DocumentReviewResponse:
+        result = review_use_case.execute_by_id(document_id=payload.document_id)
+        return review_repository.save(result.to_response()).to_response()
+
+    @app.post("/api/reviews/upload", response_model=DocumentReviewResponse)
+    async def review_upload(file: UploadFile = File(...)) -> DocumentReviewResponse:
+        content = await file.read()
+        result = review_use_case.execute_upload(
+            filename=file.filename or "",
+            content_type=file.content_type or "application/octet-stream",
+            content=content,
+        )
+        return review_repository.save(result.to_response()).to_response()
+
+    @app.get("/api/reviews", response_model=list[DocumentReviewSummaryOut])
+    def list_reviews() -> list[DocumentReviewSummaryOut]:
+        return list(review_repository.list())
+
+    @app.get("/api/reviews/{review_id}", response_model=DocumentReviewOut)
+    def get_review(review_id: str) -> DocumentReviewOut:
+        return review_repository.get(review_id)
+
+    @app.get("/api/reports", response_model=list[ComparisonReportSummaryOut])
+    def list_reports() -> list[ComparisonReportSummaryOut]:
+        return list(report_repository.list())
+
+    @app.get("/api/reports/{report_id}", response_model=ComparisonReportOut)
+    def get_report(report_id: str) -> ComparisonReportOut:
+        return report_repository.get(report_id)
 
     if config.FRONTEND_DIR.exists():
         app.mount("/", StaticFiles(directory=config.FRONTEND_DIR, html=True), name="ui")
@@ -152,6 +234,10 @@ def _status_for_domain_error(exc: DomainError) -> int:
     if isinstance(exc, DocumentValidationError):
         return 400
     if isinstance(exc, DocumentNotFoundError):
+        return 404
+    if isinstance(exc, ReportNotFoundError):
+        return 404
+    if isinstance(exc, ReviewNotFoundError):
         return 404
     if isinstance(exc, (DocumentParsingError, ComparisonError)):
         return 422

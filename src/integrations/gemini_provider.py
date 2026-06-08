@@ -3,10 +3,16 @@ from __future__ import annotations
 import sys
 
 from src import config
-from src.domain.entities import ComparisonResult
+from src.domain.entities import ComparisonResult, ParsedDocument
 from src.domain.exceptions import AIProcessingError
-from src.infrastructure.insights import build_prompt_payload
-from src.schemas.insights import LegalSummary, RiskAssessment
+from src.infrastructure.insights import (
+    build_document_review_payload,
+    build_prompt_payload,
+    clean_report,
+    comparison_change_ids,
+    document_block_ids,
+)
+from src.schemas.insights import ChangeReport
 
 
 class GeminiInsightProvider:
@@ -34,38 +40,33 @@ class GeminiInsightProvider:
         self._gateway = GeminiGateway(gateway_config)
         self._model = gateway_config.model
 
-    def generate_summary(self, comparison: ComparisonResult) -> LegalSummary:
+    def analyze_comparison(self, comparison: ComparisonResult) -> ChangeReport:
         payload = build_prompt_payload(comparison).model_dump_json(
             ensure_ascii=False,
             indent=2,
         )
-        prompt = config.LEGAL_SUMMARY_PROMPT.format(comparison_payload=payload)
-        try:
-            result = self._gateway.generate_json_result(
-                prompt,
-                LegalSummary,
-                max_output_tokens=4000,
-            )
-        except Exception as exc:
-            raise AIProcessingError("Gemini legal summary generation failed") from exc
-        return result.payload.model_copy(
-            update={"provider": "gemini", "model": self._model}
-        )
+        prompt = config.COMPARISON_ANALYSIS_PROMPT.format(comparison_payload=payload)
+        report = self._generate(prompt)
+        return clean_report(report, comparison_change_ids(comparison))
 
-    def assess_risks(self, comparison: ComparisonResult) -> RiskAssessment:
-        payload = build_prompt_payload(comparison, risk_only=True).model_dump_json(
+    def analyze_document(self, document: ParsedDocument) -> ChangeReport:
+        payload = build_document_review_payload(document).model_dump_json(
             ensure_ascii=False,
             indent=2,
         )
-        prompt = config.FINANCIAL_RISK_PROMPT.format(comparison_payload=payload)
+        prompt = config.DOCUMENT_ANALYSIS_PROMPT.format(document_payload=payload)
+        report = self._generate(prompt)
+        return clean_report(report, document_block_ids(document))
+
+    def _generate(self, prompt: str) -> ChangeReport:
         try:
             result = self._gateway.generate_json_result(
                 prompt,
-                RiskAssessment,
+                ChangeReport,
                 max_output_tokens=4000,
             )
         except Exception as exc:
-            raise AIProcessingError("Gemini risk assessment generation failed") from exc
+            raise AIProcessingError("Gemini analysis failed") from exc
         return result.payload.model_copy(
             update={"provider": "gemini", "model": self._model}
         )

@@ -34,22 +34,26 @@ Open:
 http://127.0.0.1:8010
 ```
 
-## Gemini config
+The uploaded document list is available at `http://127.0.0.1:8010/documents.html`
+and supports search by document name, ID, date, and size.
 
-Do not use `.env` for this project. Configure AI providers directly in `src/config.py`.
+## AI provider config
+
+Create a local `.env` file from `.env.example`. Do not commit `.env` or hard-code
+API keys in `src/config.py`.
 
 Gemini:
 
-```python
-GEMINI_API_KEYS = ("your-key",)
-GEMINI_MODEL = "gemini-2.0-flash"
+```powershell
+GEMINI_API_KEYS=your-key
+GEMINI_MODEL=gemini-3.1-flash-lite
 ```
 
 OpenRouter fallback provider:
 
-```python
-OPENROUTER_API_KEY = "your-openrouter-key"
-OPENROUTER_MODEL = "openai/gpt-4o-mini"
+```powershell
+OPENROUTER_API_KEY=your-openrouter-key
+OPENROUTER_MODEL=google/gemma-4-31b-it:free
 ```
 
 Provider order:

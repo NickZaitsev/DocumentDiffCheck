@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import json
-from typing import TypeVar
 
 import httpx
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from src import config
-from src.domain.entities import ComparisonResult
+from src.domain.entities import ComparisonResult, ParsedDocument
 from src.domain.exceptions import AIProcessingError
-from src.infrastructure.insights import build_prompt_payload
-from src.schemas.insights import LegalSummary, RiskAssessment
-
-T = TypeVar("T", bound=BaseModel)
+from src.infrastructure.insights import (
+    build_document_review_payload,
+    build_prompt_payload,
+    clean_report,
+    comparison_change_ids,
+    document_block_ids,
+)
+from src.schemas.insights import ChangeReport
 
 
 class OpenRouterInsightProvider:
@@ -23,31 +26,25 @@ class OpenRouterInsightProvider:
         self._model = config.OPENROUTER_MODEL
         self._base_url = config.OPENROUTER_BASE_URL.rstrip("/")
 
-    def generate_summary(self, comparison: ComparisonResult) -> LegalSummary:
+    def analyze_comparison(self, comparison: ComparisonResult) -> ChangeReport:
         payload = build_prompt_payload(comparison).model_dump_json(
             ensure_ascii=False,
             indent=2,
         )
-        prompt = config.LEGAL_SUMMARY_PROMPT.format(comparison_payload=payload)
-        result = self._generate_json(prompt, LegalSummary, schema_name="legal_summary")
-        return result.model_copy(update={"provider": "openrouter", "model": self._model})
+        prompt = config.COMPARISON_ANALYSIS_PROMPT.format(comparison_payload=payload)
+        report = self._generate_json(prompt, schema_name="change_report")
+        return clean_report(report, comparison_change_ids(comparison))
 
-    def assess_risks(self, comparison: ComparisonResult) -> RiskAssessment:
-        payload = build_prompt_payload(comparison, risk_only=True).model_dump_json(
+    def analyze_document(self, document: ParsedDocument) -> ChangeReport:
+        payload = build_document_review_payload(document).model_dump_json(
             ensure_ascii=False,
             indent=2,
         )
-        prompt = config.FINANCIAL_RISK_PROMPT.format(comparison_payload=payload)
-        result = self._generate_json(prompt, RiskAssessment, schema_name="risk_assessment")
-        return result.model_copy(update={"provider": "openrouter", "model": self._model})
+        prompt = config.DOCUMENT_ANALYSIS_PROMPT.format(document_payload=payload)
+        report = self._generate_json(prompt, schema_name="change_report")
+        return clean_report(report, document_block_ids(document))
 
-    def _generate_json(
-        self,
-        prompt: str,
-        schema: type[T],
-        *,
-        schema_name: str,
-    ) -> T:
+    def _generate_json(self, prompt: str, *, schema_name: str) -> ChangeReport:
         request_payload = {
             "model": self._model,
             "messages": [
@@ -63,7 +60,7 @@ class OpenRouterInsightProvider:
                 "json_schema": {
                     "name": schema_name,
                     "strict": True,
-                    "schema": schema.model_json_schema(),
+                    "schema": ChangeReport.model_json_schema(),
                 },
             },
         }
@@ -77,11 +74,12 @@ class OpenRouterInsightProvider:
             response.raise_for_status()
             data = response.json()
             content = data["choices"][0]["message"]["content"]
-            return schema.model_validate_json(_extract_json_content(content))
+            report = ChangeReport.model_validate_json(_extract_json_content(content))
         except (httpx.HTTPError, KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
             raise AIProcessingError("OpenRouter request failed") from exc
         except ValidationError as exc:
             raise AIProcessingError("OpenRouter returned invalid structured JSON") from exc
+        return report.model_copy(update={"provider": "openrouter", "model": self._model})
 
     def _headers(self) -> dict[str, str]:
         headers = {

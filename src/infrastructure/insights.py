@@ -2,20 +2,23 @@ from __future__ import annotations
 
 import re
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 
 from pydantic import BaseModel
 
-from src.domain.entities import ChangeType, ComparisonResult, DocumentChange
+from src.domain.entities import (
+    ChangeType,
+    ComparisonResult,
+    DocumentBlock,
+    DocumentChange,
+    ParsedDocument,
+)
 from src.domain.exceptions import AIProcessingError
 from src.domain.ports import InsightProvider
-from src.schemas.insights import (
-    FinancialRisk,
-    KeyChange,
-    LegalSummary,
-    RiskAssessment,
-)
+from src.schemas.insights import ChangeItem, ChangeReport
 
+# Contingent / asymmetric exposures only. The agreed price, quantity and a
+# normal payment schedule are NOT risks, so cost/price words are excluded here.
 _RISK_KEYWORDS = (
     "штраф",
     "пеня",
@@ -24,17 +27,18 @@ _RISK_KEYWORDS = (
     "ответственност",
     "убытк",
     "просроч",
-    "оплат",
-    "предоплат",
-    "возврат",
     "удержан",
-    "процент",
+    "невозврат",
+    "индексац",
+    "пропорционально уменьш",
+    "в одностороннем порядке",
     "liquidated damages",
     "penalty",
     "fine",
     "late payment",
     "late delivery",
     "liability",
+    "default",
 )
 _MONEY_OR_PERCENT_RE = re.compile(
     r"(\d+(?:[,.]\d+)?\s?%|\d[\d\s.,]*(?:руб\.?|₽|rur|rub|usd|eur))",
@@ -68,87 +72,86 @@ class ComparisonPromptPayload(BaseModel):
     changes: list[PromptChange]
 
 
+class PromptDocumentBlock(BaseModel):
+    block_id: str
+    index: int
+    kind: str
+    text: str
+
+
+class DocumentReviewPromptPayload(BaseModel):
+    document_id: str
+    filename: str
+    blocks_count: int
+    blocks: list[PromptDocumentBlock]
+
+
 class FallbackInsightProvider:
-    def generate_summary(self, comparison: ComparisonResult) -> LegalSummary:
-        changed = self._changed(comparison)
-        key_changes = [
-            KeyChange(
-                title=self._title_for_change(change),
-                change_type=change.change_type.value,
-                description=self._describe_change(change),
-                legal_significance=self._legal_significance(change),
-                source_change_ids=[change.change_id],
-            )
-            for change in changed[:8]
-        ]
+    def analyze_comparison(self, comparison: ComparisonResult) -> ChangeReport:
+        items: list[ChangeItem] = []
+        for change in self._changed(comparison):
+            items.append(self._change_item(change))
+
         stats = comparison.stats
-        return LegalSummary(
-            plain_language_summary=(
-                "Документы сравнены структурно по абзацам и строкам таблиц. "
-                f"Найдено добавлений: {stats.added}, удалений: {stats.removed}, "
-                f"изменений: {stats.modified}. Индекс сходства: "
-                f"{stats.similarity_score:.0%}."
-            ),
-            key_changes=key_changes,
-            legal_significance=(
-                "Автоматическое резюме построено по deterministic diff. "
-                "Юристу стоит проверить измененные условия, особенно оплату, "
-                "ответственность, сроки и штрафные санкции."
-            ),
+        summary = (
+            "Документы сравнены структурно по абзацам и строкам таблиц. "
+            f"Добавлений: {stats.added}, удалений: {stats.removed}, "
+            f"изменений: {stats.modified}. Сходство: "
+            f"{stats.similarity_score:.0%}."
+        )
+        return ChangeReport(
+            summary=summary,
+            overall_risk_level=self._overall_level(items),
+            changes=items,
             recommended_review_points=[
-                "Проверить добавленные и измененные положения договора.",
-                "Отдельно сверить суммы, проценты, сроки оплаты и поставки.",
+                "Проверить добавленные и изменённые положения договора.",
+                "Сверить суммы, проценты, сроки оплаты и поставки.",
                 "Проверить, не изменились ли ограничения ответственности сторон.",
             ],
             provider="fallback",
         )
 
-    def assess_risks(self, comparison: ComparisonResult) -> RiskAssessment:
-        risks: list[FinancialRisk] = []
-        for change in self._changed(comparison):
-            source_text = self._source_text(change)
-            if not source_text:
-                continue
-            terms = self._detected_terms(source_text)
-            money_terms = _MONEY_OR_PERCENT_RE.findall(source_text)
-            if not terms and not money_terms:
-                continue
-            confidence = 0.55
-            if terms:
-                confidence += 0.2
-            if money_terms:
-                confidence += 0.2
-            confidence = min(confidence, 0.95)
-            risks.append(
-                FinancialRisk(
-                    title="Потенциальный финансовый риск в измененном условии",
-                    risk_type=self._risk_type(terms),
-                    source_change_id=change.change_id,
-                    source_text=source_text[:1200],
-                    explanation=(
-                        "В изменении обнаружены формулировки, связанные с "
-                        "платежами, ответственностью, санкциями или сроками."
-                    ),
-                    estimated_impact=self._estimated_impact(money_terms),
-                    confidence=confidence,
-                    detected_terms=[*terms, *money_terms],
-                )
-            )
+    def analyze_document(self, document: ParsedDocument) -> ChangeReport:
+        blocks = [block for block in document.blocks if block.text.strip()]
+        risk_blocks = [block for block in blocks if self._is_risk(block.text)]
+        # Risk audit: focus on contingent risks; fall back to leading blocks only
+        # when the contract has no detectable risk clauses.
+        selected = self._dedupe_blocks(risk_blocks[:20]) or blocks[:5]
 
-        overall = "low"
-        if any(risk.confidence >= 0.85 for risk in risks):
-            overall = "high"
-        elif risks:
-            overall = "medium"
-
-        return RiskAssessment(
-            overall_risk_level=overall,
-            risks=risks[:12],
-            review_recommendation=(
-                "Проверить финансовые условия вручную: fallback extractor "
-                "показывает риск-кандидаты, а не финальное юридическое заключение."
+        items = [self._block_item(block) for block in selected]
+        return ChangeReport(
+            summary=(
+                f"Документ «{document.filename}» разобран на {len(blocks)} "
+                f"блоков; найдено потенциальных финансовых рисков: "
+                f"{len(risk_blocks)}."
             ),
+            overall_risk_level=self._overall_level(items),
+            changes=items,
+            recommended_review_points=[
+                "Проверить предмет договора и ключевые обязанности.",
+                "Сверить суммы, проценты, сроки оплаты и поставки.",
+                "Проверить санкции, ответственность и порядок расторжения.",
+            ],
             provider="fallback",
+        )
+
+    def _change_item(self, change: DocumentChange) -> ChangeItem:
+        return self._risk_item(self._describe_change(change), self._source_text(change), change.change_id)
+
+    def _block_item(self, block: DocumentBlock) -> ChangeItem:
+        description = _trim(block.text, limit=400) or block.text
+        return self._risk_item(description, block.text, block.block_id)
+
+    def _risk_item(self, description: str, source_text: str, source_id: str) -> ChangeItem:
+        terms = self._detected_terms(source_text)
+        financial = bool(terms)
+        money_terms = _MONEY_OR_PERCENT_RE.findall(source_text) if financial else []
+        return ChangeItem(
+            description=description,
+            source_change_ids=[source_id],
+            financial_risk=financial,
+            risk_type=self._risk_type(terms) if financial else None,
+            estimated_impact=self._estimated_impact(money_terms) if money_terms else None,
         )
 
     def _changed(self, comparison: ComparisonResult) -> list[DocumentChange]:
@@ -158,29 +161,40 @@ class FallbackInsightProvider:
             if change.change_type != ChangeType.UNCHANGED
         ]
 
-    def _title_for_change(self, change: DocumentChange) -> str:
-        if change.change_type == ChangeType.ADDED:
-            return "Добавлено новое положение"
-        if change.change_type == ChangeType.REMOVED:
-            return "Удалено положение"
-        return "Изменено существующее положение"
-
     def _describe_change(self, change: DocumentChange) -> str:
         old_text = change.old_block.text if change.old_block else None
         new_text = change.new_block.text if change.new_block else None
+        if change.change_type == ChangeType.ADDED and new_text:
+            return f"Добавлено: {_trim(new_text, limit=300)}"
+        if change.change_type == ChangeType.REMOVED and old_text:
+            return f"Удалено: {_trim(old_text, limit=300)}"
         if old_text and new_text:
-            return f"Было:\n{old_text[:500]}\n\nСтало:\n{new_text[:500]}"
-        if new_text:
-            return f"Стало:\n{new_text[:500]}"
-        if old_text:
-            return f"Было:\n{old_text[:500]}"
-        return "Изменение без текстового блока."
+            return (
+                f"Изменено: «{_trim(old_text, limit=180)}» → "
+                f"«{_trim(new_text, limit=180)}»"
+            )
+        return _trim(new_text or old_text, limit=300) or "Изменение без текста."
 
-    def _legal_significance(self, change: DocumentChange) -> str:
-        source = self._source_text(change).casefold()
-        if self._detected_terms(source):
-            return "Может влиять на финансовые обязанности или ответственность сторон."
-        return "Требует проверки в контексте договора."
+    def _overall_level(self, items: Iterable[ChangeItem]) -> str:
+        financial = [item for item in items if item.financial_risk]
+        if any(item.estimated_impact for item in financial):
+            return "high"
+        if financial:
+            return "medium"
+        return "low"
+
+    def _dedupe_blocks(self, blocks: Iterable[DocumentBlock]) -> list[DocumentBlock]:
+        seen: set[str] = set()
+        unique: list[DocumentBlock] = []
+        for block in blocks:
+            if block.block_id in seen:
+                continue
+            seen.add(block.block_id)
+            unique.append(block)
+        return sorted(unique, key=lambda block: block.index)
+
+    def _is_risk(self, text: str) -> bool:
+        return bool(self._detected_terms(text))
 
     def _source_text(self, change: DocumentChange) -> str:
         if change.new_block is not None:
@@ -190,23 +204,29 @@ class FallbackInsightProvider:
         return ""
 
     def _detected_terms(self, text: str) -> list[str]:
-        folded = text.casefold()
+        # Drop the "ООО" legal form so "ограниченной ответственностью" in party
+        # names is not mistaken for a liability clause.
+        folded = text.casefold().replace("ограниченной ответственностью", " ")
         return [keyword for keyword in _RISK_KEYWORDS if keyword in folded]
 
     def _risk_type(self, terms: list[str]) -> str:
         joined = " ".join(terms)
-        if "штраф" in joined or "пен" in joined or "неустойк" in joined:
+        if "штраф" in joined or "пен" in joined or "неустойк" in joined or "penalty" in joined or "fine" in joined:
             return "penalty"
-        if "оплат" in joined or "payment" in joined or "предоплат" in joined:
-            return "payment"
-        if "ответствен" in joined or "liability" in joined:
+        if "ответствен" in joined or "liability" in joined or "убытк" in joined:
             return "liability"
-        return "financial"
+        if "индексац" in joined:
+            return "indexation"
+        if "односторонн" in joined or "уменьш" in joined:
+            return "price_change"
+        if "удержан" in joined or "невозврат" in joined:
+            return "withholding"
+        return "other"
 
     def _estimated_impact(self, money_terms: list[str]) -> str | None:
         if not money_terms:
             return None
-        return "Обнаружены финансовые значения: " + ", ".join(money_terms[:6])
+        return "Финансовые значения в пункте: " + ", ".join(money_terms[:6])
 
 
 class ResilientInsightProvider:
@@ -224,50 +244,55 @@ class ResilientInsightProvider:
             self._primary_providers = (primary,)
         self._fallback = fallback
 
-    def generate_summary(self, comparison: ComparisonResult) -> LegalSummary:
+    def analyze_comparison(self, comparison: ComparisonResult) -> ChangeReport:
         for provider in self._primary_providers:
             try:
-                return provider.generate_summary(comparison)
+                return provider.analyze_comparison(comparison)
             except AIProcessingError:
                 continue
-        summary = self._fallback.generate_summary(comparison)
-        provider_name = (
-            "fallback_after_llm_error" if self._primary_providers else "fallback"
-        )
-        return summary.model_copy(update={"provider": provider_name})
+        report = self._fallback.analyze_comparison(comparison)
+        return report.model_copy(update={"provider": self._fallback_name()})
 
-    def assess_risks(self, comparison: ComparisonResult) -> RiskAssessment:
+    def analyze_document(self, document: ParsedDocument) -> ChangeReport:
         for provider in self._primary_providers:
             try:
-                return provider.assess_risks(comparison)
+                return provider.analyze_document(document)
             except AIProcessingError:
                 continue
-        risks = self._fallback.assess_risks(comparison)
-        provider_name = (
-            "fallback_after_llm_error" if self._primary_providers else "fallback"
+        report = self._fallback.analyze_document(document)
+        return report.model_copy(update={"provider": self._fallback_name()})
+
+    def _fallback_name(self) -> str:
+        return "fallback_after_llm_error" if self._primary_providers else "fallback"
+
+
+def clean_report(report: ChangeReport, valid_ids: Iterable[str]) -> ChangeReport:
+    """Drop hallucinated source ids the model returned that do not exist."""
+
+    allowed = set(valid_ids)
+    cleaned = [
+        item.model_copy(
+            update={
+                "source_change_ids": [
+                    cid for cid in item.source_change_ids if cid in allowed
+                ]
+            }
         )
-        return risks.model_copy(update={"provider": provider_name})
+        for item in report.changes
+    ]
+    return report.model_copy(update={"changes": cleaned})
 
 
 def build_prompt_payload(
     comparison: ComparisonResult,
     *,
-    risk_only: bool = False,
-    max_changes: int = 40,
+    max_changes: int = 60,
 ) -> ComparisonPromptPayload:
     changes = [
         change
         for change in comparison.changes
         if change.change_type != ChangeType.UNCHANGED
     ]
-    if risk_only:
-        fallback = FallbackInsightProvider()
-        changes = [
-            change
-            for change in changes
-            if fallback._detected_terms(fallback._source_text(change))
-            or _MONEY_OR_PERCENT_RE.search(fallback._source_text(change))
-        ]
 
     return ComparisonPromptPayload(
         comparison_id=comparison.comparison_id,
@@ -293,6 +318,37 @@ def build_prompt_payload(
             for change in changes[:max_changes]
         ],
     )
+
+
+def build_document_review_payload(
+    document: ParsedDocument,
+    *,
+    max_blocks: int = 120,
+) -> DocumentReviewPromptPayload:
+    blocks = [block for block in document.blocks if block.text.strip()]
+
+    return DocumentReviewPromptPayload(
+        document_id=document.document_id,
+        filename=document.filename,
+        blocks_count=len(document.blocks),
+        blocks=[
+            PromptDocumentBlock(
+                block_id=block.block_id,
+                index=block.index,
+                kind=block.kind.value,
+                text=_trim(block.text) or "",
+            )
+            for block in blocks[:max_blocks]
+        ],
+    )
+
+
+def comparison_change_ids(comparison: ComparisonResult) -> list[str]:
+    return [change.change_id for change in comparison.changes]
+
+
+def document_block_ids(document: ParsedDocument) -> list[str]:
+    return [block.block_id for block in document.blocks]
 
 
 def _trim(text: str | None, *, limit: int = 1400) -> str | None:

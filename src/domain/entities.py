@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 
@@ -30,6 +31,7 @@ class StoredDocument:
     content_type: str
     path: Path
     size_bytes: int
+    created_at: datetime
 
 
 @dataclass(frozen=True, slots=True)
