@@ -95,7 +95,10 @@ function renderFeed(report) {
   reviewPanel.innerHTML = `
     <div class="stack">
       <div class="risk-banner">
-        <span class="rb-text">${escapeHtml(report.summary)}</span>
+        <div class="rb-main">
+          <span class="rb-label">Саммари</span>
+          <span class="rb-text">${escapeHtml(report.summary)}</span>
+        </div>
         <span class="level-badge ${levelCls}"><span class="dot"></span>${escapeHtml(formatRiskLevelBadge(riskLevel))}</span>
       </div>
       ${riskCount ? `<p class="feed-sub">Финансовых рисков: <b>${riskCount}</b>.</p>` : ""}

@@ -1412,7 +1412,21 @@ input::placeholder { color: var(--muted); opacity: 0.6; }
   box-shadow: var(--shadow-sm);
 }
 
-.risk-banner .rb-text { font-size: 14px; max-width: 70ch; }
+.risk-banner .rb-main {
+  display: grid;
+  gap: 4px;
+  max-width: 70ch;
+}
+
+.risk-banner .rb-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.risk-banner .rb-text { font-size: 14px; }
 
 .level-badge {
   display: inline-flex;
