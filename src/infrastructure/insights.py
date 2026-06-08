@@ -47,31 +47,16 @@ _MONEY_OR_PERCENT_RE = re.compile(
 )
 
 
-class PromptStats(BaseModel):
-    added: int
-    removed: int
-    modified: int
-    unchanged: int
-    similarity_score: float
-
-
 class PromptChange(BaseModel):
     change_id: str
     change_type: str
-    old_index: int | None
-    new_index: int | None
     old_text: str | None
     old_text_truncated: bool = False
     new_text: str | None
     new_text_truncated: bool = False
-    similarity: float
 
 
 class ComparisonPromptPayload(BaseModel):
-    comparison_id: str
-    old_filename: str
-    new_filename: str
-    stats: PromptStats
     changes: list[PromptChange]
 
 
@@ -377,22 +362,10 @@ def _comparison_payload(
 ) -> ComparisonPromptPayload:
     text_limit = budget.available_chars if budget is not None and len(changes) == 1 else None
     return ComparisonPromptPayload(
-        comparison_id=comparison.comparison_id,
-        old_filename=comparison.old_document.filename,
-        new_filename=comparison.new_document.filename,
-        stats=PromptStats(
-            added=comparison.stats.added,
-            removed=comparison.stats.removed,
-            modified=comparison.stats.modified,
-            unchanged=comparison.stats.unchanged,
-            similarity_score=comparison.stats.similarity_score,
-        ),
         changes=[
             PromptChange(
                 change_id=change.change_id,
                 change_type=change.change_type.value,
-                old_index=change.old_block.index if change.old_block else None,
-                new_index=change.new_block.index if change.new_block else None,
                 old_text=_trim(_old_block_text(change), limit=text_limit),
                 old_text_truncated=_is_truncated(
                     _old_block_text(change),
@@ -403,7 +376,6 @@ def _comparison_payload(
                     _new_block_text(change),
                     limit=text_limit,
                 ),
-                similarity=round(change.similarity, 4),
             )
             for change in changes
         ],

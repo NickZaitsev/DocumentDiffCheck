@@ -10,6 +10,7 @@ from src.domain.entities import (
     ParsedDocument,
 )
 from src.infrastructure.insights import (
+    build_prompt_payload,
     iter_comparison_prompt_payloads,
     iter_document_review_payloads,
 )
@@ -27,6 +28,22 @@ def test_comparison_prompt_payloads_batch_without_dropping_changes() -> None:
     ]
     assert len(payloads) > 1
     assert payload_change_ids == [f"change-{index}" for index in range(8)]
+
+
+def test_comparison_prompt_payload_contains_only_minimal_change_fields() -> None:
+    comparison = _comparison_with_changes(1)
+
+    payload = build_prompt_payload(comparison).model_dump()
+
+    assert set(payload) == {"changes"}
+    assert set(payload["changes"][0]) == {
+        "change_id",
+        "change_type",
+        "old_text",
+        "old_text_truncated",
+        "new_text",
+        "new_text_truncated",
+    }
 
 
 def test_document_review_payloads_mark_oversized_single_block_truncated() -> None:
