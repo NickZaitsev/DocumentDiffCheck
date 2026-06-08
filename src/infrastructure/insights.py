@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import re
-
 from collections.abc import Iterable, Sequence
 
 from pydantic import BaseModel
 
+from src import config
+from src.domain.chunking import TokenBudget, chunk_sequence
 from src.domain.entities import (
     ChangeType,
     ComparisonResult,
@@ -15,7 +16,7 @@ from src.domain.entities import (
 )
 from src.domain.exceptions import AIProcessingError
 from src.domain.ports import InsightProvider
-from src.schemas.insights import ChangeItem, ChangeReport
+from src.schemas.insights import ChangeItem, ChangeReport, RiskLevel, RiskType
 
 # Contingent / asymmetric exposures only. The agreed price, quantity and a
 # normal payment schedule are NOT risks, so cost/price words are excluded here.
@@ -60,7 +61,9 @@ class PromptChange(BaseModel):
     old_index: int | None
     new_index: int | None
     old_text: str | None
+    old_text_truncated: bool = False
     new_text: str | None
+    new_text_truncated: bool = False
     similarity: float
 
 
@@ -77,6 +80,7 @@ class PromptDocumentBlock(BaseModel):
     index: int
     kind: str
     text: str
+    text_truncated: bool = False
 
 
 class DocumentReviewPromptPayload(BaseModel):
@@ -136,7 +140,11 @@ class FallbackInsightProvider:
         )
 
     def _change_item(self, change: DocumentChange) -> ChangeItem:
-        return self._risk_item(self._describe_change(change), self._source_text(change), change.change_id)
+        return self._risk_item(
+            self._describe_change(change),
+            self._source_text(change),
+            change.change_id,
+        )
 
     def _block_item(self, block: DocumentBlock) -> ChangeItem:
         description = _trim(block.text, limit=400) or block.text
@@ -175,13 +183,13 @@ class FallbackInsightProvider:
             )
         return _trim(new_text or old_text, limit=300) or "Изменение без текста."
 
-    def _overall_level(self, items: Iterable[ChangeItem]) -> str:
+    def _overall_level(self, items: Iterable[ChangeItem]) -> RiskLevel:
         financial = [item for item in items if item.financial_risk]
         if any(item.estimated_impact for item in financial):
-            return "high"
+            return RiskLevel.HIGH
         if financial:
-            return "medium"
-        return "low"
+            return RiskLevel.MEDIUM
+        return RiskLevel.LOW
 
     def _dedupe_blocks(self, blocks: Iterable[DocumentBlock]) -> list[DocumentBlock]:
         seen: set[str] = set()
@@ -209,19 +217,25 @@ class FallbackInsightProvider:
         folded = text.casefold().replace("ограниченной ответственностью", " ")
         return [keyword for keyword in _RISK_KEYWORDS if keyword in folded]
 
-    def _risk_type(self, terms: list[str]) -> str:
+    def _risk_type(self, terms: list[str]) -> RiskType:
         joined = " ".join(terms)
-        if "штраф" in joined or "пен" in joined or "неустойк" in joined or "penalty" in joined or "fine" in joined:
-            return "penalty"
+        if (
+            "штраф" in joined
+            or "пен" in joined
+            or "неустойк" in joined
+            or "penalty" in joined
+            or "fine" in joined
+        ):
+            return RiskType.PENALTY
         if "ответствен" in joined or "liability" in joined or "убытк" in joined:
-            return "liability"
+            return RiskType.LIABILITY
         if "индексац" in joined:
-            return "indexation"
+            return RiskType.INDEXATION
         if "односторонн" in joined or "уменьш" in joined:
-            return "price_change"
+            return RiskType.PRICE_CHANGE
         if "удержан" in joined or "невозврат" in joined:
-            return "withholding"
-        return "other"
+            return RiskType.WITHHOLDING
+        return RiskType.OTHER
 
     def _estimated_impact(self, money_terms: list[str]) -> str | None:
         if not money_terms:
@@ -237,11 +251,12 @@ class ResilientInsightProvider:
         fallback: InsightProvider,
     ) -> None:
         if primary is None:
-            self._primary_providers = ()
+            providers: tuple[InsightProvider, ...] = ()
         elif isinstance(primary, Sequence):
-            self._primary_providers = tuple(primary)
+            providers = tuple(primary)
         else:
-            self._primary_providers = (primary,)
+            providers = (primary,)
+        self._primary_providers = providers
         self._fallback = fallback
 
     def analyze_comparison(self, comparison: ComparisonResult) -> ChangeReport:
@@ -283,17 +298,84 @@ def clean_report(report: ChangeReport, valid_ids: Iterable[str]) -> ChangeReport
     return report.model_copy(update={"changes": cleaned})
 
 
-def build_prompt_payload(
+def merge_reports(
+    reports: Sequence[ChangeReport],
+    *,
+    provider: str,
+    model: str | None = None,
+) -> ChangeReport:
+    if not reports:
+        return ChangeReport(
+            summary="Анализ не выявил изменений для проверки.",
+            provider=provider,
+            model=model,
+        )
+    if len(reports) == 1:
+        return reports[0].model_copy(update={"provider": provider, "model": model})
+
+    changes: list[ChangeItem] = []
+    review_points: list[str] = []
+    for report in reports:
+        changes.extend(report.changes)
+        for point in report.recommended_review_points:
+            if point not in review_points:
+                review_points.append(point)
+
+    return ChangeReport(
+        summary=_merge_summary(reports),
+        overall_risk_level=_merged_risk_level(reports),
+        changes=changes,
+        recommended_review_points=review_points,
+        provider=provider,
+        model=model,
+    )
+
+
+def iter_comparison_prompt_payloads(
     comparison: ComparisonResult,
     *,
-    max_changes: int = 60,
-) -> ComparisonPromptPayload:
+    max_input_tokens: int | None = None,
+) -> list[ComparisonPromptPayload]:
     changes = [
         change
         for change in comparison.changes
         if change.change_type != ChangeType.UNCHANGED
     ]
+    budget = TokenBudget(max_input_tokens=max_input_tokens or config.MAX_INPUT_TOKENS)
+    batches = chunk_sequence(changes, budget=budget, text_for_item=_change_text)
+    return [_comparison_payload(comparison, batch, budget=budget) for batch in batches]
 
+
+def iter_document_review_payloads(
+    document: ParsedDocument,
+    *,
+    max_input_tokens: int | None = None,
+) -> list[DocumentReviewPromptPayload]:
+    blocks = [block for block in document.blocks if block.text.strip()]
+    budget = TokenBudget(max_input_tokens=max_input_tokens or config.MAX_INPUT_TOKENS)
+    batches = chunk_sequence(blocks, budget=budget, text_for_item=lambda block: block.text)
+    return [_document_review_payload(document, batch, budget=budget) for batch in batches]
+
+
+def build_prompt_payload(
+    comparison: ComparisonResult,
+    *,
+    max_changes: int | None = None,
+) -> ComparisonPromptPayload:
+    payloads = iter_comparison_prompt_payloads(comparison)
+    payload = payloads[0] if payloads else _comparison_payload(comparison, [], budget=None)
+    if max_changes is not None:
+        return payload.model_copy(update={"changes": payload.changes[:max_changes]})
+    return payload
+
+
+def _comparison_payload(
+    comparison: ComparisonResult,
+    changes: Sequence[DocumentChange],
+    *,
+    budget: TokenBudget | None,
+) -> ComparisonPromptPayload:
+    text_limit = budget.available_chars if budget is not None and len(changes) == 1 else None
     return ComparisonPromptPayload(
         comparison_id=comparison.comparison_id,
         old_filename=comparison.old_document.filename,
@@ -311,11 +393,19 @@ def build_prompt_payload(
                 change_type=change.change_type.value,
                 old_index=change.old_block.index if change.old_block else None,
                 new_index=change.new_block.index if change.new_block else None,
-                old_text=_trim(change.old_block.text if change.old_block else None),
-                new_text=_trim(change.new_block.text if change.new_block else None),
+                old_text=_trim(_old_block_text(change), limit=text_limit),
+                old_text_truncated=_is_truncated(
+                    _old_block_text(change),
+                    limit=text_limit,
+                ),
+                new_text=_trim(_new_block_text(change), limit=text_limit),
+                new_text_truncated=_is_truncated(
+                    _new_block_text(change),
+                    limit=text_limit,
+                ),
                 similarity=round(change.similarity, 4),
             )
-            for change in changes[:max_changes]
+            for change in changes
         ],
     )
 
@@ -323,10 +413,22 @@ def build_prompt_payload(
 def build_document_review_payload(
     document: ParsedDocument,
     *,
-    max_blocks: int = 120,
+    max_blocks: int | None = None,
 ) -> DocumentReviewPromptPayload:
-    blocks = [block for block in document.blocks if block.text.strip()]
+    payloads = iter_document_review_payloads(document)
+    payload = payloads[0] if payloads else _document_review_payload(document, [], budget=None)
+    if max_blocks is not None:
+        return payload.model_copy(update={"blocks": payload.blocks[:max_blocks]})
+    return payload
 
+
+def _document_review_payload(
+    document: ParsedDocument,
+    blocks: Sequence[DocumentBlock],
+    *,
+    budget: TokenBudget | None,
+) -> DocumentReviewPromptPayload:
+    text_limit = budget.available_chars if budget is not None and len(blocks) == 1 else None
     return DocumentReviewPromptPayload(
         document_id=document.document_id,
         filename=document.filename,
@@ -336,9 +438,10 @@ def build_document_review_payload(
                 block_id=block.block_id,
                 index=block.index,
                 kind=block.kind.value,
-                text=_trim(block.text) or "",
+                text=_trim(block.text, limit=text_limit) or "",
+                text_truncated=_is_truncated(block.text, limit=text_limit),
             )
-            for block in blocks[:max_blocks]
+            for block in blocks
         ],
     )
 
@@ -351,9 +454,56 @@ def document_block_ids(document: ParsedDocument) -> list[str]:
     return [block.block_id for block in document.blocks]
 
 
-def _trim(text: str | None, *, limit: int = 1400) -> str | None:
+def _trim(text: str | None, *, limit: int | None = None) -> str | None:
     if text is None:
         return None
+    if limit is None:
+        return text
     if len(text) <= limit:
         return text
     return text[: limit - 3] + "..."
+
+
+def _is_truncated(text: str | None, *, limit: int | None) -> bool:
+    return text is not None and limit is not None and len(text) > limit
+
+
+def _change_text(change: DocumentChange) -> str:
+    return "\n".join(
+        value
+        for value in (
+            _old_block_text(change) or "",
+            _new_block_text(change) or "",
+        )
+        if value
+    )
+
+
+def _old_block_text(change: DocumentChange) -> str | None:
+    return change.old_block.text if change.old_block else None
+
+
+def _new_block_text(change: DocumentChange) -> str | None:
+    return change.new_block.text if change.new_block else None
+
+
+def _merged_risk_level(reports: Sequence[ChangeReport]) -> RiskLevel:
+    levels = {report.overall_risk_level for report in reports}
+    if RiskLevel.HIGH in levels:
+        return RiskLevel.HIGH
+    if RiskLevel.MEDIUM in levels:
+        return RiskLevel.MEDIUM
+    return RiskLevel.LOW
+
+
+def _merge_summary(reports: Sequence[ChangeReport]) -> str:
+    financial_count = sum(
+        1
+        for report in reports
+        for item in report.changes
+        if item.financial_risk
+    )
+    return (
+        f"Проанализировано {len(reports)} пакет(ов) документа; "
+        f"найдено финансовых рисков: {financial_count}."
+    )

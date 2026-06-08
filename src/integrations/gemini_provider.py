@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-import sys
+from typing import cast
 
 from src import config
 from src.domain.entities import ComparisonResult, ParsedDocument
 from src.domain.exceptions import AIProcessingError
 from src.infrastructure.insights import (
-    build_document_review_payload,
-    build_prompt_payload,
     clean_report,
     comparison_change_ids,
     document_block_ids,
+    iter_comparison_prompt_payloads,
+    iter_document_review_payloads,
+    merge_reports,
 )
 from src.schemas.insights import ChangeReport
 
@@ -20,12 +21,10 @@ class GeminiInsightProvider:
         api_keys = _gemini_api_keys()
         if not api_keys:
             raise AIProcessingError("Gemini API keys are not configured")
-        if config.GEMINI_GATEWAY_SRC_PATH.exists():
-            path = str(config.GEMINI_GATEWAY_SRC_PATH)
-            if path not in sys.path:
-                sys.path.insert(0, path)
-
-        from gemini_gateway import GeminiGateway, GeminiGatewayConfig
+        try:
+            from gemini_gateway import GeminiGateway, GeminiGatewayConfig
+        except ImportError as exc:
+            raise AIProcessingError("Gemini gateway dependency is not installed") from exc
 
         gateway_config = GeminiGatewayConfig(
             model=config.GEMINI_MODEL,
@@ -41,22 +40,22 @@ class GeminiInsightProvider:
         self._model = gateway_config.model
 
     def analyze_comparison(self, comparison: ComparisonResult) -> ChangeReport:
-        payload = build_prompt_payload(comparison).model_dump_json(
-            ensure_ascii=False,
-            indent=2,
-        )
-        prompt = config.COMPARISON_ANALYSIS_PROMPT.format(comparison_payload=payload)
-        report = self._generate(prompt)
-        return clean_report(report, comparison_change_ids(comparison))
+        reports: list[ChangeReport] = []
+        for payload_model in iter_comparison_prompt_payloads(comparison):
+            payload = payload_model.model_dump_json(ensure_ascii=False, indent=2)
+            prompt = config.COMPARISON_ANALYSIS_PROMPT.format(comparison_payload=payload)
+            report = self._generate(prompt)
+            reports.append(clean_report(report, comparison_change_ids(comparison)))
+        return merge_reports(reports, provider="gemini", model=self._model)
 
     def analyze_document(self, document: ParsedDocument) -> ChangeReport:
-        payload = build_document_review_payload(document).model_dump_json(
-            ensure_ascii=False,
-            indent=2,
-        )
-        prompt = config.DOCUMENT_ANALYSIS_PROMPT.format(document_payload=payload)
-        report = self._generate(prompt)
-        return clean_report(report, document_block_ids(document))
+        reports: list[ChangeReport] = []
+        for payload_model in iter_document_review_payloads(document):
+            payload = payload_model.model_dump_json(ensure_ascii=False, indent=2)
+            prompt = config.DOCUMENT_ANALYSIS_PROMPT.format(document_payload=payload)
+            report = self._generate(prompt)
+            reports.append(clean_report(report, document_block_ids(document)))
+        return merge_reports(reports, provider="gemini", model=self._model)
 
     def _generate(self, prompt: str) -> ChangeReport:
         try:
@@ -67,7 +66,8 @@ class GeminiInsightProvider:
             )
         except Exception as exc:
             raise AIProcessingError("Gemini analysis failed") from exc
-        return result.payload.model_copy(
+        report = cast(ChangeReport, result.payload)
+        return report.model_copy(
             update={"provider": "gemini", "model": self._model}
         )
 

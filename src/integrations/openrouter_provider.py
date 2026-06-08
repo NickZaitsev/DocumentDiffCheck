@@ -9,13 +9,14 @@ from src import config
 from src.domain.entities import ComparisonResult, ParsedDocument
 from src.domain.exceptions import AIProcessingError
 from src.infrastructure.insights import (
-    build_document_review_payload,
-    build_prompt_payload,
     clean_report,
     comparison_change_ids,
     document_block_ids,
+    iter_comparison_prompt_payloads,
+    iter_document_review_payloads,
+    merge_reports,
 )
-from src.schemas.insights import ChangeReport
+from src.schemas.insights import ChangeReport, RiskLevel, RiskType
 
 
 class OpenRouterInsightProvider:
@@ -27,22 +28,22 @@ class OpenRouterInsightProvider:
         self._base_url = config.OPENROUTER_BASE_URL.rstrip("/")
 
     def analyze_comparison(self, comparison: ComparisonResult) -> ChangeReport:
-        payload = build_prompt_payload(comparison).model_dump_json(
-            ensure_ascii=False,
-            indent=2,
-        )
-        prompt = config.COMPARISON_ANALYSIS_PROMPT.format(comparison_payload=payload)
-        report = self._generate_json(prompt, schema_name="change_report")
-        return clean_report(report, comparison_change_ids(comparison))
+        reports: list[ChangeReport] = []
+        for payload_model in iter_comparison_prompt_payloads(comparison):
+            payload = payload_model.model_dump_json(ensure_ascii=False, indent=2)
+            prompt = config.COMPARISON_ANALYSIS_PROMPT.format(comparison_payload=payload)
+            report = self._generate_json(prompt, schema_name="change_report")
+            reports.append(clean_report(report, comparison_change_ids(comparison)))
+        return merge_reports(reports, provider="openrouter", model=self._model)
 
     def analyze_document(self, document: ParsedDocument) -> ChangeReport:
-        payload = build_document_review_payload(document).model_dump_json(
-            ensure_ascii=False,
-            indent=2,
-        )
-        prompt = config.DOCUMENT_ANALYSIS_PROMPT.format(document_payload=payload)
-        report = self._generate_json(prompt, schema_name="change_report")
-        return clean_report(report, document_block_ids(document))
+        reports: list[ChangeReport] = []
+        for payload_model in iter_document_review_payloads(document):
+            payload = payload_model.model_dump_json(ensure_ascii=False, indent=2)
+            prompt = config.DOCUMENT_ANALYSIS_PROMPT.format(document_payload=payload)
+            report = self._generate_json(prompt, schema_name="change_report")
+            reports.append(clean_report(report, document_block_ids(document)))
+        return merge_reports(reports, provider="openrouter", model=self._model)
 
     def _generate_json(self, prompt: str, *, schema_name: str) -> ChangeReport:
         request_payload = {
@@ -60,7 +61,7 @@ class OpenRouterInsightProvider:
                 "json_schema": {
                     "name": schema_name,
                     "strict": True,
-                    "schema": ChangeReport.model_json_schema(),
+                    "schema": _change_report_response_schema(),
                 },
             },
         }
@@ -111,3 +112,57 @@ def _extract_json_content(content: str) -> str:
     if start == -1 or end == -1 or end <= start:
         return stripped
     return stripped[start : end + 1]
+
+
+def _change_report_response_schema() -> dict[str, object]:
+    risk_types = [item.value for item in RiskType]
+    risk_levels = [item.value for item in RiskLevel]
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "summary",
+            "overall_risk_level",
+            "changes",
+            "recommended_review_points",
+        ],
+        "properties": {
+            "summary": {"type": "string", "minLength": 1},
+            "overall_risk_level": {"type": "string", "enum": risk_levels},
+            "changes": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "description",
+                        "source_change_ids",
+                        "financial_risk",
+                        "risk_type",
+                        "estimated_impact",
+                    ],
+                    "properties": {
+                        "description": {"type": "string", "minLength": 1},
+                        "source_change_ids": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                        "financial_risk": {"type": "boolean"},
+                        "risk_type": {
+                            "anyOf": [
+                                {"type": "string", "enum": risk_types},
+                                {"type": "null"},
+                            ]
+                        },
+                        "estimated_impact": {
+                            "anyOf": [{"type": "string"}, {"type": "null"}]
+                        },
+                    },
+                },
+            },
+            "recommended_review_points": {
+                "type": "array",
+                "items": {"type": "string"},
+            },
+        },
+    }

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Protocol
 
 from src.domain.entities import ComparisonResult, ParsedDocument, StoredDocument
@@ -29,8 +28,3 @@ class InsightProvider(Protocol):
 
     def analyze_document(self, document: ParsedDocument) -> ChangeReport:
         """Produce a unified findings feed (with financial flags) for one document."""
-
-
-class FileHasher(Protocol):
-    def sha256(self, path: Path) -> str:
-        """Return the SHA-256 hash of a local file."""

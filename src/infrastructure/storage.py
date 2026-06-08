@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from src import config
 from src.domain.entities import StoredDocument
 from src.domain.exceptions import DocumentNotFoundError, DocumentValidationError
+from src.infrastructure.atomic_json import locked, update_json_index, write_json_atomic
 
 
 class DocumentRecord(BaseModel):
@@ -46,23 +47,35 @@ class LocalDocumentRepository:
         target_path = self._storage_dir / f"{document_id}{suffix}"
         target_path.write_bytes(content)
 
-        records = self._load_records()
-        created_at = datetime.now(UTC)
-        if records:
-            latest_created_at = max(record.created_at for record in records.values())
-            if created_at <= latest_created_at:
-                created_at = latest_created_at + timedelta(microseconds=1)
+        record: DocumentRecord | None = None
 
-        record = DocumentRecord(
-            document_id=document_id,
-            filename=Path(filename).name,
-            content_type=content_type or "application/octet-stream",
-            path=str(target_path),
-            size_bytes=len(content),
-            created_at=created_at,
+        def add_record(records: dict[str, DocumentRecord]) -> dict[str, DocumentRecord]:
+            nonlocal record
+            created_at = datetime.now(UTC)
+            if records:
+                latest_created_at = max(item.created_at for item in records.values())
+                if created_at <= latest_created_at:
+                    created_at = latest_created_at + timedelta(microseconds=1)
+
+            record = DocumentRecord(
+                document_id=document_id,
+                filename=Path(filename).name,
+                content_type=content_type or "application/octet-stream",
+                path=str(target_path),
+                size_bytes=len(content),
+                created_at=created_at,
+            )
+            records[record.document_id] = record
+            return records
+
+        update_json_index(
+            self._index_path,
+            load=self._load_records,
+            save=self._save_records,
+            mutate=add_record,
         )
-        records[record.document_id] = record
-        self._save_records(records)
+        if record is None:
+            raise DocumentValidationError("Document save failed")
         return record.to_domain()
 
     def get(self, document_id: str) -> StoredDocument:
@@ -84,13 +97,14 @@ class LocalDocumentRepository:
         )
 
     def _load_records(self) -> dict[str, DocumentRecord]:
-        if not self._index_path.exists():
-            return {}
-        raw = json.loads(self._index_path.read_text(encoding="utf-8"))
-        if not isinstance(raw, list):
-            raise DocumentValidationError("Document index is malformed")
-        records = [self._record_from_index_item(item) for item in raw]
-        return {record.document_id: record for record in records}
+        with locked(self._index_path):
+            if not self._index_path.exists():
+                return {}
+            raw = json.loads(self._index_path.read_text(encoding="utf-8"))
+            if not isinstance(raw, list):
+                raise DocumentValidationError("Document index is malformed")
+            records = [self._record_from_index_item(item) for item in raw]
+            return {record.document_id: record for record in records}
 
     def _record_from_index_item(self, item: object) -> DocumentRecord:
         if isinstance(item, dict) and "created_at" not in item:
@@ -111,8 +125,5 @@ class LocalDocumentRepository:
                 reverse=True,
             )
         ]
-        self._index_path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        write_json_atomic(self._index_path, payload)
 

@@ -22,7 +22,7 @@ from src.domain.exceptions import DocumentParsingError
 class DocxDocumentParser:
     def parse(self, stored_document: StoredDocument) -> ParsedDocument:
         try:
-            document = Document(stored_document.path)
+            document = Document(str(stored_document.path))
             blocks = tuple(self._extract_blocks(document))
         except Exception as exc:
             raise DocumentParsingError(

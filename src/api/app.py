@@ -1,16 +1,16 @@
 from __future__ import annotations
 
+import json
 import logging
 import time
-from collections.abc import Callable
-from typing import Awaitable
+from collections.abc import Awaitable, Callable
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response
 
 from src import config
@@ -42,10 +42,10 @@ from src.schemas.api import (
     CompareResponse,
     ComparisonReportOut,
     ComparisonReportSummaryOut,
+    DocumentOut,
     DocumentReviewOut,
     DocumentReviewResponse,
     DocumentReviewSummaryOut,
-    DocumentOut,
     ReviewByIdRequest,
 )
 
@@ -55,7 +55,8 @@ logger = logging.getLogger(__name__)
 def create_app() -> FastAPI:
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
+        handlers=[_json_log_handler()],
+        force=True,
     )
 
     app = FastAPI(title="Document Diff Check", version="0.1.0")
@@ -96,8 +97,9 @@ def create_app() -> FastAPI:
 
     @app.post("/api/documents", response_model=DocumentOut)
     async def upload_document(file: UploadFile = File(...)) -> DocumentOut:
-        content = await file.read()
-        document = upload_use_case.execute(
+        content = await _read_upload_limited(file)
+        document = await run_in_threadpool(
+            upload_use_case.execute,
             filename=file.filename or "",
             content_type=file.content_type or "application/octet-stream",
             content=content,
@@ -146,9 +148,10 @@ def create_app() -> FastAPI:
         old_file: UploadFile = File(...),
         new_file: UploadFile = File(...),
     ) -> CompareResponse:
-        old_content = await old_file.read()
-        new_content = await new_file.read()
-        result = compare_use_case.execute_uploads(
+        old_content = await _read_upload_limited(old_file)
+        new_content = await _read_upload_limited(new_file)
+        result = await run_in_threadpool(
+            compare_use_case.execute_uploads,
             old_filename=old_file.filename or "",
             old_content_type=old_file.content_type or "application/octet-stream",
             old_content=old_content,
@@ -165,8 +168,9 @@ def create_app() -> FastAPI:
 
     @app.post("/api/reviews/upload", response_model=DocumentReviewResponse)
     async def review_upload(file: UploadFile = File(...)) -> DocumentReviewResponse:
-        content = await file.read()
-        result = review_use_case.execute_upload(
+        content = await _read_upload_limited(file)
+        result = await run_in_threadpool(
+            review_use_case.execute_upload,
             filename=file.filename or "",
             content_type=file.content_type or "application/octet-stream",
             content=content,
@@ -218,7 +222,25 @@ async def request_context_middleware(
     return response
 
 
-async def domain_error_handler(request: Request, exc: DomainError) -> JSONResponse:
+async def _read_upload_limited(file: UploadFile) -> bytes:
+    chunks: list[bytes] = []
+    total_bytes = 0
+    while True:
+        chunk = await file.read(1024 * 1024)
+        if not chunk:
+            break
+        total_bytes += len(chunk)
+        if total_bytes > config.MAX_UPLOAD_BYTES:
+            raise DocumentValidationError(
+                f"Uploaded document exceeds {config.MAX_UPLOAD_BYTES} bytes"
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+async def domain_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    if not isinstance(exc, DomainError):
+        raise exc
     status_code = _status_for_domain_error(exc)
     return JSONResponse(
         status_code=status_code,
@@ -246,14 +268,48 @@ def _status_for_domain_error(exc: DomainError) -> int:
     return 500
 
 
-def _build_primary_insight_providers() -> tuple[GeminiInsightProvider | OpenRouterInsightProvider, ...]:
+def _build_primary_insight_providers() -> tuple[
+    GeminiInsightProvider | OpenRouterInsightProvider,
+    ...,
+]:
     providers: list[GeminiInsightProvider | OpenRouterInsightProvider] = []
     for provider_factory in (GeminiInsightProvider, OpenRouterInsightProvider):
         try:
             providers.append(provider_factory())
-        except AIProcessingError:
+        except Exception as exc:
+            logger.warning(
+                "Skipping insight provider that failed to initialize",
+                extra={
+                    "provider": provider_factory.__name__,
+                    "error": type(exc).__name__,
+                },
+            )
             continue
     return tuple(providers)
+
+
+class JsonLogFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "message": record.getMessage(),
+            "request_id": getattr(record, "request_id", None),
+            "operation": getattr(record, "operation", None),
+            "execution_time": getattr(record, "execution_time", None),
+            "document_id": getattr(record, "document_id", None),
+        }
+        if hasattr(record, "provider"):
+            payload["provider"] = record.provider
+        if hasattr(record, "error"):
+            payload["error"] = record.error
+        return json.dumps(payload, ensure_ascii=False)
+
+
+def _json_log_handler() -> logging.Handler:
+    handler = logging.StreamHandler()
+    handler.setFormatter(JsonLogFormatter())
+    return handler
 
 
 app = create_app()

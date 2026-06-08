@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import json
+import logging
 from pathlib import Path
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 from src import config
-from src.api.app import create_app
+from src.api.app import JsonLogFormatter, create_app
 
 
 def test_compare_uploads_returns_diff_summary_and_risks(
@@ -54,7 +56,10 @@ def test_compare_uploads_returns_diff_summary_and_risks(
 
     report_response = client.get(f"/api/reports/{payload['report_id']}")
     assert report_response.status_code == 200
-    assert report_response.json()["comparison"]["comparison_id"] == payload["comparison"]["comparison_id"]
+    assert (
+        report_response.json()["comparison"]["comparison_id"]
+        == payload["comparison"]["comparison_id"]
+    )
 
 
 def test_document_download_returns_stored_file(
@@ -227,6 +232,29 @@ def test_document_reports_returns_not_found_for_missing_document(
     response = client.get("/api/documents/missing-document/reports")
 
     assert response.status_code == 404
+
+
+def test_json_log_formatter_emits_required_context_fields() -> None:
+    record = logging.LogRecord(
+        name="test",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg="request finished",
+        args=(),
+        exc_info=None,
+    )
+    record.request_id = "request-1"
+    record.operation = "GET /api/health"
+    record.execution_time = 0.01
+    record.document_id = "document-1"
+
+    payload = json.loads(JsonLogFormatter().format(record))
+
+    assert payload["request_id"] == "request-1"
+    assert payload["operation"] == "GET /api/health"
+    assert payload["execution_time"] == 0.01
+    assert payload["document_id"] == "document-1"
 
 
 def _upload_sample_document(client: TestClient, filename: str) -> str:

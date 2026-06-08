@@ -10,13 +10,14 @@ from pydantic import BaseModel, ValidationError
 
 from src import config
 from src.domain.exceptions import DocumentValidationError, ReviewNotFoundError
-
-logger = logging.getLogger(__name__)
+from src.infrastructure.atomic_json import locked, update_json_index, write_json_atomic
 from src.schemas.api import (
     DocumentReviewOut,
     DocumentReviewResponse,
     DocumentReviewSummaryOut,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ReviewRecord(BaseModel):
@@ -67,9 +68,12 @@ class LocalDocumentReviewRepository:
                 }
             ),
         )
-        records = self._load_records()
-        records[record.review_id] = record
-        self._save_records(records)
+        update_json_index(
+            self._index_path,
+            load=self._load_records,
+            save=self._save_records,
+            mutate=lambda records: {**records, record.review_id: record},
+        )
         return record.to_review()
 
     def get(self, review_id: str) -> DocumentReviewOut:
@@ -100,20 +104,21 @@ class LocalDocumentReviewRepository:
         )
 
     def _load_records(self) -> dict[str, ReviewRecord]:
-        if not self._index_path.exists():
-            return {}
-        raw = json.loads(self._index_path.read_text(encoding="utf-8"))
-        if not isinstance(raw, list):
-            raise DocumentValidationError("Review index is malformed")
-        records: dict[str, ReviewRecord] = {}
-        for item in raw:
-            try:
-                record = ReviewRecord.model_validate(item)
-            except ValidationError:
-                logger.warning("Skipping review record with incompatible schema")
-                continue
-            records[record.review_id] = record
-        return records
+        with locked(self._index_path):
+            if not self._index_path.exists():
+                return {}
+            raw = json.loads(self._index_path.read_text(encoding="utf-8"))
+            if not isinstance(raw, list):
+                raise DocumentValidationError("Review index is malformed")
+            records: dict[str, ReviewRecord] = {}
+            for item in raw:
+                try:
+                    record = ReviewRecord.model_validate(item)
+                except ValidationError:
+                    logger.warning("Skipping review record with incompatible schema")
+                    continue
+                records[record.review_id] = record
+            return records
 
     def _save_records(self, records: dict[str, ReviewRecord]) -> None:
         payload = [
@@ -124,10 +129,7 @@ class LocalDocumentReviewRepository:
                 reverse=True,
             )
         ]
-        self._index_path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        write_json_atomic(self._index_path, payload)
 
 
 def _review_url(review_id: str) -> str:

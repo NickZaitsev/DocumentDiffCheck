@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 from types import SimpleNamespace
 from typing import Any
 
@@ -82,3 +83,22 @@ def test_primary_provider_falls_back_to_openrouter_when_gemini_unavailable(
 
     assert len(providers) == 1
     assert isinstance(providers[0], OpenRouterInsightProvider)
+
+
+def test_primary_provider_initialization_tolerates_gemini_import_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(config, "GEMINI_API_KEYS", ("gemini-key",))
+    monkeypatch.setattr(config, "OPENROUTER_API_KEY", "")
+    real_import = builtins.__import__
+
+    def fail_gemini_import(name: str, *args: Any, **kwargs: Any) -> Any:
+        if name == "gemini_gateway":
+            raise ImportError("missing gemini gateway")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fail_gemini_import)
+
+    providers = _build_primary_insight_providers()
+
+    assert providers == ()

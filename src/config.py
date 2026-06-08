@@ -54,8 +54,9 @@ def _env_csv(name: str) -> tuple[str, ...]:
 
 _load_dotenv(BASE_DIR / ".env")
 
-GEMINI_GATEWAY_SRC_PATH = Path(r"C:\gemini-gateway\src")
-GEMINI_MODEL = _env_str("GEMINI_MODEL", "gemini-3.1-flash-lite")
+MAX_INPUT_TOKENS = _env_int("MAX_INPUT_TOKENS", 12_000)
+
+GEMINI_MODEL = _env_str("GEMINI_MODEL", "gemini-1.5-flash")
 GEMINI_API_KEYS = _env_csv("GEMINI_API_KEYS")
 GEMINI_REQUESTS_PER_MINUTE = _env_int("GEMINI_REQUESTS_PER_MINUTE", 15)
 GEMINI_TOKENS_PER_MINUTE = _env_int("GEMINI_TOKENS_PER_MINUTE", 250_000)
@@ -65,7 +66,7 @@ GEMINI_MAX_RETRIES = _env_int("GEMINI_MAX_RETRIES", 3)
 GEMINI_TEMPERATURE = _env_float("GEMINI_TEMPERATURE", 0.1)
 
 OPENROUTER_API_KEY = _env_str("OPENROUTER_API_KEY")
-OPENROUTER_MODEL = _env_str("OPENROUTER_MODEL", "google/gemma-4-31b-it:free")
+OPENROUTER_MODEL = _env_str("OPENROUTER_MODEL", "google/gemini-flash-1.5")
 OPENROUTER_BASE_URL = _env_str("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 OPENROUTER_TIMEOUT_SECONDS = _env_int("OPENROUTER_TIMEOUT_SECONDS", 120)
 OPENROUTER_MAX_TOKENS = _env_int("OPENROUTER_MAX_TOKENS", 4000)

@@ -10,13 +10,14 @@ from pydantic import BaseModel, ValidationError
 
 from src import config
 from src.domain.exceptions import DocumentValidationError, ReportNotFoundError
-
-logger = logging.getLogger(__name__)
+from src.infrastructure.atomic_json import locked, update_json_index, write_json_atomic
 from src.schemas.api import (
     CompareResponse,
     ComparisonReportOut,
     ComparisonReportSummaryOut,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ComparisonReportRecord(BaseModel):
@@ -71,9 +72,12 @@ class LocalComparisonReportRepository:
                 }
             ),
         )
-        records = self._load_records()
-        records[record.report_id] = record
-        self._save_records(records)
+        update_json_index(
+            self._index_path,
+            load=self._load_records,
+            save=self._save_records,
+            mutate=lambda records: {**records, record.report_id: record},
+        )
         return record.to_report()
 
     def get(self, report_id: str) -> ComparisonReportOut:
@@ -105,20 +109,21 @@ class LocalComparisonReportRepository:
         )
 
     def _load_records(self) -> dict[str, ComparisonReportRecord]:
-        if not self._index_path.exists():
-            return {}
-        raw = json.loads(self._index_path.read_text(encoding="utf-8"))
-        if not isinstance(raw, list):
-            raise DocumentValidationError("Report index is malformed")
-        records: dict[str, ComparisonReportRecord] = {}
-        for item in raw:
-            try:
-                record = ComparisonReportRecord.model_validate(item)
-            except ValidationError:
-                logger.warning("Skipping report record with incompatible schema")
-                continue
-            records[record.report_id] = record
-        return records
+        with locked(self._index_path):
+            if not self._index_path.exists():
+                return {}
+            raw = json.loads(self._index_path.read_text(encoding="utf-8"))
+            if not isinstance(raw, list):
+                raise DocumentValidationError("Report index is malformed")
+            records: dict[str, ComparisonReportRecord] = {}
+            for item in raw:
+                try:
+                    record = ComparisonReportRecord.model_validate(item)
+                except ValidationError:
+                    logger.warning("Skipping report record with incompatible schema")
+                    continue
+                records[record.report_id] = record
+            return records
 
     def _save_records(self, records: dict[str, ComparisonReportRecord]) -> None:
         payload = [
@@ -129,10 +134,7 @@ class LocalComparisonReportRepository:
                 reverse=True,
             )
         ]
-        self._index_path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        write_json_atomic(self._index_path, payload)
 
 
 def _report_url(report_id: str) -> str:
