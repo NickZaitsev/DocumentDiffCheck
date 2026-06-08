@@ -74,6 +74,25 @@ OPENROUTER_TEMPERATURE = _env_float("OPENROUTER_TEMPERATURE", 0.1)
 OPENROUTER_SITE_URL = _env_str("OPENROUTER_SITE_URL", "http://127.0.0.1:8010")
 OPENROUTER_APP_NAME = _env_str("OPENROUTER_APP_NAME", "Document Diff Check")
 
+CONTRACT_AMOUNT_EXTRACTION_PROMPT = """
+Ты извлекаешь денежный контекст из договора для последующей оценки штрафов,
+пеней и лимитов ответственности.
+
+Нужно выбрать именно общую сумму договора/контракта, если она есть в
+кандидатных блоках. Не выбирай отдельный штраф, пеню, аванс, НДС, стоимость
+одной позиции, цену единицы товара или лимит ответственности как сумму
+договора.
+
+Верни JSON по схеме:
+- "contract_amount": строка с суммой договора как в документе или null;
+- "source_block_id": block_id блока-источника или null;
+- "explanation": коротко по-русски, почему выбрана эта сумма или почему сумма
+  договора не найдена.
+
+Кандидатные блоки:
+{monetary_payload}
+""".strip()
+
 # A financial RISK is a contingent or asymmetric monetary exposure — something
 # that can cost a party money beyond the agreed price. The agreed price itself,
 # the quantity, and a normal payment schedule are NOT risks (they are terms).
@@ -109,7 +128,9 @@ Produce ONE unified list of changes ("changes"). For each change:
 - "risk_type": the tag from the list below when financial_risk is true, else null;
 - "estimated_impact": when financial_risk is true, the money effect as a value
   or a short formula using amounts present in the document; null when it cannot
-  be estimated. Do not invent missing contract values.
+  be estimated. If the clause says "up to 10% of the contract amount" and the
+  monetary context below contains the contract amount, include the concrete
+  calculation in this field. Do not invent missing contract values.
 """
     + _RISK_DEFINITION
     + """
@@ -117,6 +138,9 @@ Also fill:
 - "summary": 1-2 sentences on what changed overall;
 - "overall_risk_level": "low" | "medium" | "high" based on the financial risks;
 - "recommended_review_points": a few concrete things a lawyer should check.
+
+Денежный контекст для оценки рисков:
+{monetary_context}
 
 Comparison payload:
 {comparison_payload}
@@ -139,7 +163,9 @@ Produce ONE list ("changes") focused on financial risk. For each item:
 - "risk_type": the tag from the list below when financial_risk is true, else null;
 - "estimated_impact": when financial_risk is true, quantify the exposure using
   amounts present in the contract (e.g. the total price) when possible; null
-  otherwise. Do not invent missing contract values.
+  otherwise. If the clause says "up to 10% of the contract amount" and the
+  monetary context below contains the contract amount, include the concrete
+  calculation in this field. Do not invent missing contract values.
 """
     + _RISK_DEFINITION
     + """
@@ -151,6 +177,9 @@ Also fill:
 - "summary": 1-2 sentences on the contract's purpose and main obligations;
 - "overall_risk_level": "low" | "medium" | "high" based on the financial risks;
 - "recommended_review_points": a few concrete things a lawyer should check.
+
+Денежный контекст для оценки рисков:
+{monetary_context}
 
 Document payload:
 {document_payload}

@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-from typing import cast
-
 from src import config
 from src.domain.entities import ComparisonResult, ParsedDocument
 from src.domain.exceptions import AIProcessingError
 from src.infrastructure.insights import (
+    ContractAmountExtraction,
+    build_monetary_context_payload,
     clean_report,
     comparison_change_ids,
     document_block_ids,
     iter_comparison_prompt_payloads,
     iter_document_review_payloads,
     merge_reports,
+    monetary_context_from_extraction,
 )
 from src.schemas.insights import ChangeReport
 
@@ -41,21 +42,48 @@ class GeminiInsightProvider:
 
     def analyze_comparison(self, comparison: ComparisonResult) -> ChangeReport:
         reports: list[ChangeReport] = []
+        monetary_context = self._extract_monetary_context(comparison.new_document)
         for payload_model in iter_comparison_prompt_payloads(comparison):
             payload = payload_model.model_dump_json(ensure_ascii=False, indent=2)
-            prompt = config.COMPARISON_ANALYSIS_PROMPT.format(comparison_payload=payload)
+            prompt = config.COMPARISON_ANALYSIS_PROMPT.format(
+                monetary_context=monetary_context,
+                comparison_payload=payload,
+            )
             report = self._generate(prompt)
             reports.append(clean_report(report, comparison_change_ids(comparison)))
         return merge_reports(reports, provider="gemini", model=self._model)
 
     def analyze_document(self, document: ParsedDocument) -> ChangeReport:
         reports: list[ChangeReport] = []
+        monetary_context = self._extract_monetary_context(document)
         for payload_model in iter_document_review_payloads(document):
             payload = payload_model.model_dump_json(ensure_ascii=False, indent=2)
-            prompt = config.DOCUMENT_ANALYSIS_PROMPT.format(document_payload=payload)
+            prompt = config.DOCUMENT_ANALYSIS_PROMPT.format(
+                monetary_context=monetary_context,
+                document_payload=payload,
+            )
             report = self._generate(prompt)
             reports.append(clean_report(report, document_block_ids(document)))
         return merge_reports(reports, provider="gemini", model=self._model)
+
+    def _extract_monetary_context(self, document: ParsedDocument) -> str:
+        payload_model = build_monetary_context_payload(document)
+        if not payload_model.candidates:
+            return monetary_context_from_extraction(document, ContractAmountExtraction())
+        payload = payload_model.model_dump_json(ensure_ascii=False, indent=2)
+        prompt = config.CONTRACT_AMOUNT_EXTRACTION_PROMPT.format(
+            monetary_payload=payload
+        )
+        try:
+            result = self._gateway.generate_json_result(
+                prompt,
+                ContractAmountExtraction,
+                max_output_tokens=1000,
+            )
+        except Exception as exc:
+            raise AIProcessingError("Gemini monetary extraction failed") from exc
+        extraction: ContractAmountExtraction = result.payload
+        return monetary_context_from_extraction(document, extraction)
 
     def _generate(self, prompt: str) -> ChangeReport:
         try:
@@ -66,7 +94,7 @@ class GeminiInsightProvider:
             )
         except Exception as exc:
             raise AIProcessingError("Gemini analysis failed") from exc
-        report = cast(ChangeReport, result.payload)
+        report: ChangeReport = result.payload
         return report.model_copy(
             update={"provider": "gemini", "model": self._model}
         )

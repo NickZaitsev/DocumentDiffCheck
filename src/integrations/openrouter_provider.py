@@ -9,12 +9,15 @@ from src import config
 from src.domain.entities import ComparisonResult, ParsedDocument
 from src.domain.exceptions import AIProcessingError
 from src.infrastructure.insights import (
+    ContractAmountExtraction,
+    build_monetary_context_payload,
     clean_report,
     comparison_change_ids,
     document_block_ids,
     iter_comparison_prompt_payloads,
     iter_document_review_payloads,
     merge_reports,
+    monetary_context_from_extraction,
 )
 from src.schemas.insights import ChangeReport, RiskLevel, RiskType
 
@@ -29,21 +32,80 @@ class OpenRouterInsightProvider:
 
     def analyze_comparison(self, comparison: ComparisonResult) -> ChangeReport:
         reports: list[ChangeReport] = []
+        monetary_context = self._extract_monetary_context(comparison.new_document)
         for payload_model in iter_comparison_prompt_payloads(comparison):
             payload = payload_model.model_dump_json(ensure_ascii=False, indent=2)
-            prompt = config.COMPARISON_ANALYSIS_PROMPT.format(comparison_payload=payload)
+            prompt = config.COMPARISON_ANALYSIS_PROMPT.format(
+                monetary_context=monetary_context,
+                comparison_payload=payload,
+            )
             report = self._generate_json(prompt, schema_name="change_report")
             reports.append(clean_report(report, comparison_change_ids(comparison)))
         return merge_reports(reports, provider="openrouter", model=self._model)
 
     def analyze_document(self, document: ParsedDocument) -> ChangeReport:
         reports: list[ChangeReport] = []
+        monetary_context = self._extract_monetary_context(document)
         for payload_model in iter_document_review_payloads(document):
             payload = payload_model.model_dump_json(ensure_ascii=False, indent=2)
-            prompt = config.DOCUMENT_ANALYSIS_PROMPT.format(document_payload=payload)
+            prompt = config.DOCUMENT_ANALYSIS_PROMPT.format(
+                monetary_context=monetary_context,
+                document_payload=payload,
+            )
             report = self._generate_json(prompt, schema_name="change_report")
             reports.append(clean_report(report, document_block_ids(document)))
         return merge_reports(reports, provider="openrouter", model=self._model)
+
+    def _extract_monetary_context(self, document: ParsedDocument) -> str:
+        payload_model = build_monetary_context_payload(document)
+        if not payload_model.candidates:
+            return monetary_context_from_extraction(document, ContractAmountExtraction())
+        payload = payload_model.model_dump_json(ensure_ascii=False, indent=2)
+        prompt = config.CONTRACT_AMOUNT_EXTRACTION_PROMPT.format(
+            monetary_payload=payload
+        )
+        extraction = self._generate_contract_amount(prompt)
+        return monetary_context_from_extraction(document, extraction)
+
+    def _generate_contract_amount(self, prompt: str) -> ContractAmountExtraction:
+        request_payload = {
+            "model": self._model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            "temperature": config.OPENROUTER_TEMPERATURE,
+            "max_tokens": 1000,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "contract_amount_extraction",
+                    "strict": True,
+                    "schema": _contract_amount_response_schema(),
+                },
+            },
+        }
+        try:
+            response = httpx.post(
+                f"{self._base_url}/chat/completions",
+                headers=self._headers(),
+                json=request_payload,
+                timeout=config.OPENROUTER_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+            return ContractAmountExtraction.model_validate_json(
+                _extract_json_content(content)
+            )
+        except (httpx.HTTPError, KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+            raise AIProcessingError("OpenRouter monetary extraction failed") from exc
+        except ValidationError as exc:
+            raise AIProcessingError(
+                "OpenRouter returned invalid monetary extraction JSON"
+            ) from exc
 
     def _generate_json(self, prompt: str, *, schema_name: str) -> ChangeReport:
         request_payload = {
@@ -164,5 +226,22 @@ def _change_report_response_schema() -> dict[str, object]:
                 "type": "array",
                 "items": {"type": "string"},
             },
+        },
+    }
+
+
+def _contract_amount_response_schema() -> dict[str, object]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["contract_amount", "source_block_id", "explanation"],
+        "properties": {
+            "contract_amount": {
+                "anyOf": [{"type": "string"}, {"type": "null"}],
+            },
+            "source_block_id": {
+                "anyOf": [{"type": "string"}, {"type": "null"}],
+            },
+            "explanation": {"type": "string"},
         },
     }

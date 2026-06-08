@@ -45,6 +45,24 @@ _MONEY_OR_PERCENT_RE = re.compile(
     r"(\d+(?:[,.]\d+)?\s?%|\d[\d\s.,]*(?:руб\.?|₽|rur|rub|usd|eur))",
     re.IGNORECASE,
 )
+_MONEY_AMOUNT_RE = re.compile(
+    r"(\d[\d\s.,]*(?:руб\.?|₽|rur|rub|usd|eur))",
+    re.IGNORECASE,
+)
+_CONTRACT_AMOUNT_KEYWORDS = (
+    "цена договора",
+    "стоимость договора",
+    "сумма договора",
+    "цена контракта",
+    "стоимость контракта",
+    "сумма контракта",
+    "общая стоимость",
+    "общая сумма",
+    "итоговая стоимость",
+    "contract price",
+    "contract amount",
+    "total amount",
+)
 
 
 class PromptChange(BaseModel):
@@ -73,6 +91,30 @@ class DocumentReviewPromptPayload(BaseModel):
     filename: str
     blocks_count: int
     blocks: list[PromptDocumentBlock]
+
+
+class MonetaryContextCandidate(BaseModel):
+    block_id: str
+    amount: str
+    text: str
+
+
+class MonetaryContextBlock(BaseModel):
+    block_id: str
+    index: int
+    text: str
+
+
+class MonetaryContextPromptPayload(BaseModel):
+    document_id: str
+    filename: str
+    candidates: list[MonetaryContextBlock]
+
+
+class ContractAmountExtraction(BaseModel):
+    contract_amount: str | None = None
+    source_block_id: str | None = None
+    explanation: str = ""
 
 
 class FallbackInsightProvider:
@@ -424,6 +466,134 @@ def comparison_change_ids(comparison: ComparisonResult) -> list[str]:
 
 def document_block_ids(document: ParsedDocument) -> list[str]:
     return [block.block_id for block in document.blocks]
+
+
+def comparison_monetary_context(comparison: ComparisonResult) -> str:
+    return document_monetary_context(comparison.new_document)
+
+
+def build_monetary_context_payload(
+    document: ParsedDocument,
+    *,
+    max_blocks: int = 30,
+) -> MonetaryContextPromptPayload:
+    return MonetaryContextPromptPayload(
+        document_id=document.document_id,
+        filename=document.filename,
+        candidates=[
+            MonetaryContextBlock(
+                block_id=block.block_id,
+                index=block.index,
+                text=_trim(block.text.strip(), limit=700) or "",
+            )
+            for block in _monetary_candidate_blocks(document, max_blocks=max_blocks)
+        ],
+    )
+
+
+def monetary_context_from_extraction(
+    document: ParsedDocument,
+    extraction: ContractAmountExtraction,
+) -> str:
+    amount = extraction.contract_amount.strip() if extraction.contract_amount else ""
+    if not amount:
+        return document_monetary_context(document)
+
+    source_block_id = extraction.source_block_id
+    source = _block_by_id(document, source_block_id) if source_block_id else None
+    source_text = _trim(source.text.strip(), limit=300) if source is not None else None
+    lines = [
+        f"- Известная сумма договора: {amount}"
+        + (f" (источник: {source_block_id})." if source_block_id else "."),
+    ]
+    if source_text:
+        lines.append(f"- Фрагмент с суммой договора: «{source_text}».")
+    if extraction.explanation:
+        lines.append(f"- Почему выбрана эта сумма: {extraction.explanation}")
+    lines.append(
+        "- Используй эту сумму только как базу для расчета штрафов, пеней, "
+        "лимитов ответственности и похожих рисков. Саму цену договора не "
+        "помечай как financial_risk."
+    )
+    return "\n".join(lines)
+
+
+def document_monetary_context(document: ParsedDocument) -> str:
+    candidate = _contract_amount_candidate(document)
+    if candidate is None:
+        return (
+            "- Сумма договора в переданных блоках надежно не найдена. "
+            "Если риск выражен процентом от суммы договора, не придумывай "
+            "денежный расчет; укажи только формулу в estimated_impact."
+        )
+    return (
+        f"- Известная сумма договора: {candidate.amount} "
+        f"(источник: {candidate.block_id}).\n"
+        f"- Фрагмент с суммой договора: «{candidate.text}».\n"
+        "- Используй эту сумму только как базу для расчета штрафов, пеней, "
+        "лимитов ответственности и похожих рисков. Саму цену договора не "
+        "помечай как financial_risk."
+    )
+
+
+def _contract_amount_candidate(document: ParsedDocument) -> MonetaryContextCandidate | None:
+    candidates: list[tuple[int, int, MonetaryContextCandidate]] = []
+    for block in document.blocks:
+        text = block.text.strip()
+        if not text:
+            continue
+        folded = text.casefold()
+        keyword_hits = sum(
+            1 for keyword in _CONTRACT_AMOUNT_KEYWORDS if keyword in folded
+        )
+        if not keyword_hits:
+            continue
+        amounts = _MONEY_AMOUNT_RE.findall(text)
+        if not amounts:
+            continue
+        candidates.append(
+            (
+                -keyword_hits,
+                block.index,
+                MonetaryContextCandidate(
+                    block_id=block.block_id,
+                    amount=amounts[0].strip(),
+                    text=_trim(text, limit=300) or text,
+                ),
+            )
+        )
+    if not candidates:
+        return None
+    return sorted(candidates, key=lambda item: (item[0], item[1]))[0][2]
+
+
+def _monetary_candidate_blocks(
+    document: ParsedDocument,
+    *,
+    max_blocks: int,
+) -> list[DocumentBlock]:
+    scored: list[tuple[int, int, DocumentBlock]] = []
+    for block in document.blocks:
+        text = block.text.strip()
+        if not text or not _MONEY_AMOUNT_RE.search(text):
+            continue
+        folded = text.casefold()
+        keyword_hits = sum(
+            1 for keyword in _CONTRACT_AMOUNT_KEYWORDS if keyword in folded
+        )
+        # Prefer likely contract-total blocks, but keep other money blocks so
+        # the extractor can reject penalties, advances, VAT-only values, etc.
+        score = -keyword_hits
+        scored.append((score, block.index, block))
+    return [block for _, _, block in sorted(scored, key=lambda item: (item[0], item[1]))][
+        :max_blocks
+    ]
+
+
+def _block_by_id(document: ParsedDocument, block_id: str | None) -> DocumentBlock | None:
+    if block_id is None:
+        return None
+    return next((block for block in document.blocks if block.block_id == block_id), None)
 
 
 def _trim(text: str | None, *, limit: int | None = None) -> str | None:
